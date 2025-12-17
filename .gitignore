@@ -6,6 +6,7 @@
 .vault_pass
 
 # User inventories (keep only sample)
+# This excludes production.yaml, staging.yaml, etc. - only sample_inventory.yaml is tracked
 inventories/*
 !inventories/sample_inventory.yaml
 
