@@ -1,0 +1,59 @@
+---
+# Debian/Raspbian-specific tasks
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Install required packages (Debian)
+  ansible.builtin.apt:
+    name: "{{ common_packages + debian_packages }}"
+    state: present
+  become: true
+
+# Raspberry Pi specific configurations
+- name: Check if running on Raspberry Pi
+  ansible.builtin.stat:
+    path: /boot/firmware/cmdline.txt
+  register: rpi_cmdline_firmware
+
+- name: Check legacy boot location
+  ansible.builtin.stat:
+    path: /boot/cmdline.txt
+  register: rpi_cmdline_boot
+
+- name: Set cmdline.txt path
+  ansible.builtin.set_fact:
+    rpi_cmdline_path: >-
+      {%- if rpi_cmdline_firmware.stat.exists -%}
+        /boot/firmware/cmdline.txt
+      {%- elif rpi_cmdline_boot.stat.exists -%}
+        /boot/cmdline.txt
+      {%- else -%}
+        none
+      {%- endif -%}
+
+- name: Enable cgroups for Raspberry Pi
+  when: rpi_cmdline_path | trim != 'none'
+  block:
+    - name: Read current cmdline.txt
+      ansible.builtin.slurp:
+        src: "{{ rpi_cmdline_path | trim }}"
+      register: cmdline_content
+
+    - name: Add cgroup parameters to cmdline.txt
+      ansible.builtin.lineinfile:
+        path: "{{ rpi_cmdline_path | trim }}"
+        regexp: '^(.*)$'
+        line: '\1 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory'
+        backrefs: true
+      become: true
+      when: "'cgroup_enable' not in (cmdline_content.content | b64decode)"
+      register: cmdline_updated
+
+    - name: Notify reboot required
+      ansible.builtin.debug:
+        msg: "Raspberry Pi cmdline.txt updated - reboot required!"
+      when: cmdline_updated.changed

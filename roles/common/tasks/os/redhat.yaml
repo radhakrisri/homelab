@@ -1,0 +1,40 @@
+---
+# RedHat/AlmaLinux-specific tasks
+
+- name: Install EPEL repository
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+  become: true
+  when: ansible_distribution != 'Fedora'
+
+- name: Install required packages (RedHat family)
+  ansible.builtin.dnf:
+    name: "{{ common_packages + redhat_packages }}"
+    state: present
+  become: true
+
+- name: Disable SELinux (or set to permissive)
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+  become: true
+  register: selinux_result
+
+- name: Notify reboot required for SELinux changes
+  ansible.builtin.debug:
+    msg: "SELinux state changed - reboot may be required!"
+  when: selinux_result.changed
+
+# For AlmaLinux/RHEL 8+, ensure container-tools module is available
+- name: Check dnf module availability
+  ansible.builtin.command: dnf module list container-tools
+  register: container_tools_module
+  ignore_errors: true
+  changed_when: false
+
+- name: Enable container-tools module
+  ansible.builtin.command: dnf module enable -y container-tools
+  become: true
+  when: container_tools_module.rc == 0
+  changed_when: false

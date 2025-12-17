@@ -1,0 +1,61 @@
+# Sample Inventory for K3s HA Cluster
+# Copy this file and fill in your actual infrastructure details
+# Example: cp sample_inventory.yaml production.yaml
+#
+# K3s HA Mode requires at least 3 server (control plane) nodes
+# The first server node initializes the cluster, others join it
+#
+# Supported OS: Ubuntu 20.04+, AlmaLinux 8+, Raspbian/Raspberry Pi OS
+# Supported Architectures: aarch64 (ARM64), x86_64
+
+all:
+  vars:
+    # Ansible connection settings
+    ansible_user: your_ssh_user
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    # ansible_become_password: "{{ vault_become_password }}"  # Use Ansible Vault
+
+    # K3s settings
+    k3s_version: "v1.31.2+k3s1"  # Check https://github.com/k3s-io/k3s/releases
+    k3s_token: "{{ vault_k3s_token }}"  # Use Ansible Vault - generate with: openssl rand -hex 32
+    
+    # Cluster networking
+    k3s_cluster_cidr: "10.42.0.0/16"
+    k3s_service_cidr: "10.43.0.0/16"
+    k3s_cluster_dns: "10.43.0.10"
+
+    # HA settings - use embedded etcd for HA
+    k3s_datastore: "etcd"  # embedded etcd for HA without external DB
+
+    # Additional K3s server arguments (optional)
+    k3s_server_extra_args: ""
+    # k3s_server_extra_args: "--disable traefik --disable servicelb"
+
+    # Additional K3s agent arguments (optional)
+    k3s_agent_extra_args: ""
+
+  children:
+    # K3s Server nodes (control plane) - minimum 3 for HA
+    k3s_servers:
+      hosts:
+        k3s-server-01:
+          ansible_host: 192.168.1.101
+          k3s_server_init: true  # First server initializes the cluster
+        k3s-server-02:
+          ansible_host: 192.168.1.102
+        k3s-server-03:
+          ansible_host: 192.168.1.103
+
+    # K3s Agent nodes (workers)
+    k3s_agents:
+      hosts:
+        k3s-agent-01:
+          ansible_host: 192.168.1.104
+        k3s-agent-02:
+          ansible_host: 192.168.1.105
+
+    # Group all K3s nodes for common configuration
+    k3s_cluster:
+      children:
+        k3s_servers:
+        k3s_agents:

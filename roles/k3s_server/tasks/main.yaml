@@ -1,0 +1,138 @@
+---
+# K3s Server (Control Plane) Role
+
+- name: Check if K3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Get K3s installed version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_installed_version
+  when: k3s_binary.stat.exists
+  changed_when: false
+
+- name: Display K3s status
+  ansible.builtin.debug:
+    msg: "K3s {{ 'already installed: ' + k3s_installed_version.stdout.split()[2] if k3s_binary.stat.exists else 'not installed' }}"
+
+- name: Create K3s config directory
+  ansible.builtin.file:
+    path: "{{ k3s_config_dir }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Deploy K3s server configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ k3s_config_dir }}/config.yaml"
+    mode: "0600"
+  become: true
+  notify: Restart k3s
+
+- name: Initialize first K3s server (cluster-init)
+  when: k3s_server_init | default(false)
+  block:
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: "{{ k3s_install_script_url }}"
+        dest: /tmp/k3s-install.sh
+        mode: "0755"
+      become: true
+
+    - name: Install K3s server (init node)
+      ansible.builtin.command: /tmp/k3s-install.sh
+      environment:
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
+        INSTALL_K3S_EXEC: "server"
+        K3S_TOKEN: "{{ k3s_token }}"
+      args:
+        creates: /usr/local/bin/k3s
+      become: true
+      register: k3s_init_result
+
+    - name: Wait for K3s server to be ready
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+        timeout: 120
+      become: true
+
+    - name: Wait for K3s API to be available
+      ansible.builtin.uri:
+        url: https://127.0.0.1:6443/healthz
+        validate_certs: false
+        status_code: 200
+      register: api_health
+      until: api_health.status == 200
+      retries: 30
+      delay: 5
+
+- name: Join additional K3s servers
+  when: not (k3s_server_init | default(false))
+  block:
+    - name: Get init server address
+      ansible.builtin.set_fact:
+        k3s_init_server: "{{ hostvars[item].ansible_host }}"
+      loop: "{{ groups['k3s_servers'] }}"
+      when: hostvars[item].k3s_server_init | default(false)
+
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: "{{ k3s_install_script_url }}"
+        dest: /tmp/k3s-install.sh
+        mode: "0755"
+      become: true
+
+    - name: Install K3s server (joining node)
+      ansible.builtin.command: /tmp/k3s-install.sh
+      environment:
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
+        INSTALL_K3S_EXEC: "server"
+        K3S_TOKEN: "{{ k3s_token }}"
+        K3S_URL: "https://{{ k3s_init_server }}:6443"
+      args:
+        creates: /usr/local/bin/k3s
+      become: true
+
+    - name: Wait for K3s server to be ready
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        state: present
+        timeout: 120
+      become: true
+
+- name: Ensure K3s service is started and enabled
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Apply node labels
+  ansible.builtin.command: >
+    /usr/local/bin/k3s kubectl label node {{ inventory_hostname }}
+    {{ item }} --overwrite
+  loop: "{{ k3s_node_labels }}"
+  become: true
+  changed_when: false
+  when: k3s_node_labels | length > 0
+
+- name: Fetch kubeconfig
+  when: k3s_server_init | default(false)
+  block:
+    - name: Read kubeconfig from server
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: kubeconfig_content
+      become: true
+
+    - name: Save kubeconfig locally
+      ansible.builtin.copy:
+        content: "{{ kubeconfig_content.content | b64decode | replace('127.0.0.1', ansible_host) }}"
+        dest: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+        mode: "0600"
+      delegate_to: localhost
+      become: false

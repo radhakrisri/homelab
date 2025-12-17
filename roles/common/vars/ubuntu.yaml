@@ -1,0 +1,20 @@
+---
+# Ubuntu-specific variables
+
+common_packages:
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - open-iscsi
+  - nfs-common
+  - jq
+  - git
+  - htop
+  - vim
+  - net-tools
+
+debian_packages:
+  - apt-transport-https
+  - software-properties-common
+  - python3-pip

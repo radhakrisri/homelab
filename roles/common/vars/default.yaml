@@ -1,0 +1,28 @@
+---
+# Default variables - common packages
+
+common_packages:
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - open-iscsi
+  - nfs-common
+  - jq
+  - git
+  - htop
+  - vim
+  - net-tools
+
+debian_packages:
+  - apt-transport-https
+  - software-properties-common
+  - python3-pip
+  - linux-modules-extra-raspi  # For Raspberry Pi kernel modules
+
+redhat_packages:
+  - python3-pip
+  - iscsi-initiator-utils
+  - nfs-utils
+  - policycoreutils-python-utils

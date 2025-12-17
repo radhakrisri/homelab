@@ -1,0 +1,44 @@
+---
+# Disable swap - required for Kubernetes
+
+- name: Disable swap immediately
+  ansible.builtin.command: swapoff -a
+  become: true
+  changed_when: false
+
+- name: Remove swap from /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+.*)$'
+    replace: '# \1'
+  become: true
+
+# For systems using zram (common on Raspberry Pi)
+- name: Check if zram-config exists
+  ansible.builtin.stat:
+    path: /usr/bin/zram-config
+  register: zram_config
+
+- name: Disable zram-config service
+  ansible.builtin.systemd:
+    name: zram-config
+    state: stopped
+    enabled: false
+  become: true
+  when: zram_config.stat.exists
+  ignore_errors: true
+
+# For systems using dphys-swapfile (Raspbian)
+- name: Check if dphys-swapfile exists
+  ansible.builtin.stat:
+    path: /sbin/dphys-swapfile
+  register: dphys_swapfile
+
+- name: Disable dphys-swapfile
+  ansible.builtin.systemd:
+    name: dphys-swapfile
+    state: stopped
+    enabled: false
+  become: true
+  when: dphys_swapfile.stat.exists
+  ignore_errors: true

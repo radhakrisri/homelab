@@ -1,0 +1,15 @@
+# Agent work area (transient files)
+.agent-workarea/
+
+# Ansible
+*.retry
+.vault_pass
+
+# User inventories (keep only sample)
+inventories/*
+!inventories/sample_inventory.yaml
+
+# Secrets
+*.pem
+*.key
+secrets/

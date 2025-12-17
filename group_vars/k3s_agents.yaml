@@ -1,0 +1,8 @@
+---
+# Variables specific to K3s agent (worker) nodes
+
+k3s_node_type: "agent"
+
+# Agent-specific labels
+k3s_node_labels:
+  - "node-role.kubernetes.io/worker=true"

@@ -1,0 +1,20 @@
+---
+# RedHat/AlmaLinux-specific variables
+
+common_packages:
+  - curl
+  - wget
+  - ca-certificates
+  - jq
+  - git
+  - htop
+  - vim
+  - net-tools
+
+redhat_packages:
+  - python3-pip
+  - iscsi-initiator-utils
+  - nfs-utils
+  - policycoreutils-python-utils
+  - tar
+  - unzip

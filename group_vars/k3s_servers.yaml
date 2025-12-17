@@ -1,0 +1,13 @@
+---
+# Variables specific to K3s server (control plane) nodes
+
+k3s_node_type: "server"
+
+# Server nodes should not be tainted by default in small clusters
+# Uncomment to prevent workloads on control plane nodes
+# k3s_node_taints:
+#   - "node-role.kubernetes.io/control-plane:NoSchedule"
+
+# Server-specific labels
+k3s_node_labels:
+  - "node-role.kubernetes.io/control-plane=true"

@@ -1,0 +1,71 @@
+---
+# Configure firewall for K3s
+
+- name: Check firewall type
+  ansible.builtin.set_fact:
+    firewall_type: >-
+      {%- if ansible_os_family == 'RedHat' -%}
+        firewalld
+      {%- elif ansible_os_family == 'Debian' -%}
+        ufw
+      {%- else -%}
+        none
+      {%- endif -%}
+
+# UFW (Ubuntu/Debian)
+- name: Configure UFW firewall
+  when: firewall_type | trim == 'ufw'
+  block:
+    - name: Check if UFW is installed
+      ansible.builtin.command: which ufw
+      register: ufw_installed
+      ignore_errors: true
+      changed_when: false
+
+    - name: Allow K3s ports through UFW
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      loop: "{{ k3s_firewall_ports }}"
+      become: true
+      when: ufw_installed.rc == 0
+
+    - name: Allow traffic between cluster nodes (UFW)
+      community.general.ufw:
+        rule: allow
+        from_ip: "{{ hostvars[item].ansible_host }}"
+      loop: "{{ groups['k3s_cluster'] }}"
+      become: true
+      when: ufw_installed.rc == 0
+
+# Firewalld (AlmaLinux/RHEL)
+- name: Configure firewalld
+  when: firewall_type | trim == 'firewalld'
+  block:
+    - name: Check if firewalld is running
+      ansible.builtin.systemd:
+        name: firewalld
+      register: firewalld_status
+      ignore_errors: true
+
+    - name: Allow K3s ports through firewalld
+      ansible.posix.firewalld:
+        port: "{{ item.port }}/{{ item.proto }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: "{{ k3s_firewall_ports }}"
+      become: true
+      when: firewalld_status.status.ActiveState == 'active'
+
+    - name: Allow traffic between cluster nodes (firewalld)
+      ansible.posix.firewalld:
+        source: "{{ hostvars[item].ansible_host }}"
+        zone: trusted
+        permanent: true
+        state: enabled
+        immediate: true
+      loop: "{{ groups['k3s_cluster'] }}"
+      become: true
+      when: firewalld_status.status.ActiveState == 'active'

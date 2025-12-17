@@ -1,0 +1,139 @@
+---
+# Upgrade K3s cluster to a new version
+#
+# Usage:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/upgrade.yaml -e k3s_version=v1.31.2+k3s1
+#
+# The upgrade follows best practices:
+# 1. Upgrade server nodes one at a time
+# 2. Upgrade agent nodes
+
+- name: Verify upgrade parameters
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Check k3s_version is defined
+      ansible.builtin.fail:
+        msg: "Please specify k3s_version with -e k3s_version=vX.XX.X+k3s1"
+      when: k3s_version is not defined
+
+    - name: Display upgrade target
+      ansible.builtin.debug:
+        msg: "Upgrading K3s cluster to version: {{ k3s_version }}"
+
+- name: Upgrade K3s servers (one at a time)
+  hosts: k3s_servers
+  gather_facts: true
+  become: true
+  serial: 1
+  tasks:
+    - name: Get current K3s version
+      ansible.builtin.command: /usr/local/bin/k3s --version
+      register: current_version
+      changed_when: false
+
+    - name: Display current version
+      ansible.builtin.debug:
+        msg: "Current version: {{ current_version.stdout.split()[2] }}"
+
+    - name: Cordon node
+      ansible.builtin.command: /usr/local/bin/k3s kubectl cordon {{ inventory_hostname }}
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+
+    - name: Drain node
+      ansible.builtin.command: >
+        /usr/local/bin/k3s kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets --delete-emptydir-data --force --timeout=120s
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+      ignore_errors: true
+
+    - name: Download and run K3s installer
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server
+      register: upgrade_result
+
+    - name: Wait for K3s to be ready
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes
+      register: nodes_ready
+      until: "inventory_hostname in nodes_ready.stdout and 'Ready' in nodes_ready.stdout"
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Uncordon node
+      ansible.builtin.command: /usr/local/bin/k3s kubectl uncordon {{ inventory_hostname }}
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+
+    - name: Pause between server upgrades
+      ansible.builtin.pause:
+        seconds: 30
+
+- name: Upgrade K3s agents
+  hosts: k3s_agents
+  gather_facts: true
+  become: true
+  serial: 1
+  tasks:
+    - name: Get current K3s version
+      ansible.builtin.command: /usr/local/bin/k3s --version
+      register: current_version
+      changed_when: false
+
+    - name: Display current version
+      ansible.builtin.debug:
+        msg: "Current version: {{ current_version.stdout.split()[2] }}"
+
+    - name: Cordon node
+      ansible.builtin.command: /usr/local/bin/k3s kubectl cordon {{ inventory_hostname }}
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+
+    - name: Drain node
+      ansible.builtin.command: >
+        /usr/local/bin/k3s kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets --delete-emptydir-data --force --timeout=120s
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+      ignore_errors: true
+
+    - name: Download and run K3s installer
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - agent
+      register: upgrade_result
+
+    - name: Restart k3s-agent service
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: restarted
+        daemon_reload: true
+
+    - name: Wait for agent to rejoin cluster
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get node {{ inventory_hostname }}
+      register: node_ready
+      until: "'Ready' in node_ready.stdout"
+      retries: 30
+      delay: 10
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+
+    - name: Uncordon node
+      ansible.builtin.command: /usr/local/bin/k3s kubectl uncordon {{ inventory_hostname }}
+      changed_when: false
+      delegate_to: "{{ groups['k3s_servers'] | first }}"
+
+- name: Verify upgrade
+  hosts: k3s_servers[0]
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Get all node versions
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o wide
+      register: final_status
+      changed_when: false
+
+    - name: Display final cluster status
+      ansible.builtin.debug:
+        msg: "{{ final_status.stdout_lines }}"

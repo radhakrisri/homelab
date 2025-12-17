@@ -1,0 +1,45 @@
+---
+# Common role - OS-agnostic system preparation
+
+- name: Include OS-specific variables
+  ansible.builtin.include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version }}.yaml"
+    - "{{ ansible_distribution | lower }}.yaml"
+    - "{{ ansible_os_family | lower }}.yaml"
+    - "default.yaml"
+
+- name: Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ item }}"
+  with_first_found:
+    - "os/{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version }}.yaml"
+    - "os/{{ ansible_distribution | lower }}.yaml"
+    - "os/{{ ansible_os_family | lower }}.yaml"
+    - "os/default.yaml"
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+  become: true
+
+- name: Update /etc/hosts with inventory hostnames
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ".*{{ item }}$"
+    line: "{{ hostvars[item].ansible_host }} {{ item }}"
+    state: present
+  loop: "{{ groups['k3s_cluster'] }}"
+  become: true
+
+- name: Disable swap (required for Kubernetes)
+  ansible.builtin.include_tasks: disable-swap.yaml
+
+- name: Configure kernel modules
+  ansible.builtin.include_tasks: kernel-modules.yaml
+
+- name: Configure sysctl parameters
+  ansible.builtin.include_tasks: sysctl.yaml
+
+- name: Configure firewall
+  ansible.builtin.include_tasks: firewall.yaml
+  when: configure_firewall | default(true)

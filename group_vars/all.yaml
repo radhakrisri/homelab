@@ -1,0 +1,53 @@
+---
+# Global variables for all hosts
+
+# System settings
+timezone: "UTC"
+locale: "en_US.UTF-8"
+
+# Package management - will be auto-detected per OS
+# Override if needed per host/group
+
+# K3s installation
+k3s_install_script_url: "https://get.k3s.io"
+k3s_systemd_dir: "/etc/systemd/system"
+k3s_config_dir: "/etc/rancher/k3s"
+k3s_data_dir: "/var/lib/rancher/k3s"
+
+# Kubeconfig settings
+k3s_kubeconfig_mode: "0644"
+
+# Node labels (can be overridden per host)
+k3s_node_labels: []
+# Example:
+# k3s_node_labels:
+#   - "node-type=worker"
+#   - "environment=production"
+
+# Node taints (can be overridden per host)
+k3s_node_taints: []
+# Example:
+# k3s_node_taints:
+#   - "node-role.kubernetes.io/master:NoSchedule"
+
+# Firewall ports for K3s
+k3s_firewall_ports:
+  # K3s supervisor and Kubernetes API Server
+  - port: 6443
+    proto: tcp
+  # Kubelet metrics
+  - port: 10250
+    proto: tcp
+  # Flannel VXLAN (if using Flannel)
+  - port: 8472
+    proto: udp
+  # Embedded etcd (HA only)
+  - port: 2379
+    proto: tcp
+  - port: 2380
+    proto: tcp
+
+# DNS servers for nodes (optional override)
+# dns_servers:
+#   - 8.8.8.8
+#   - 8.8.4.4

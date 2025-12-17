@@ -1,0 +1,15 @@
+---
+# Default/fallback OS tasks
+
+- name: Display OS information
+  ansible.builtin.debug:
+    msg: |
+      Detected OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      OS Family: {{ ansible_os_family }}
+      Architecture: {{ ansible_architecture }}
+
+- name: Warn about unsupported OS
+  ansible.builtin.debug:
+    msg: >
+      Warning: {{ ansible_distribution }} is not explicitly supported.
+      Attempting generic configuration. Some tasks may fail.

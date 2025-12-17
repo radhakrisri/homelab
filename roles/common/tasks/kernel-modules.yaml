@@ -1,0 +1,32 @@
+---
+# Load required kernel modules for Kubernetes/K3s
+
+- name: Ensure kernel modules are loaded
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+    - ip_tables
+    - ip6_tables
+    - nf_nat
+    - iptable_filter
+    - iptable_nat
+  become: true
+  ignore_errors: true  # Some modules may not be available on all systems
+
+- name: Persist kernel modules across reboots
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      # Kernel modules required for K3s/Kubernetes
+      br_netfilter
+      overlay
+      ip_tables
+      ip6_tables
+      nf_nat
+      iptable_filter
+      iptable_nat
+    mode: "0644"
+  become: true

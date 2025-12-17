@@ -1,0 +1,25 @@
+---
+# Configure sysctl parameters for Kubernetes/K3s
+
+- name: Configure sysctl for Kubernetes networking
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-k3s.conf
+    reload: true
+    state: present
+  loop:
+    - { name: "net.bridge.bridge-nf-call-iptables", value: "1" }
+    - { name: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
+    - { name: "net.ipv4.ip_forward", value: "1" }
+    - { name: "net.ipv6.conf.all.forwarding", value: "1" }
+    - { name: "net.ipv4.conf.all.src_valid_mark", value: "1" }
+    # Performance tuning
+    - { name: "fs.inotify.max_user_watches", value: "524288" }
+    - { name: "fs.inotify.max_user_instances", value: "512" }
+    # Memory management
+    - { name: "vm.panic_on_oom", value: "0" }
+    - { name: "vm.overcommit_memory", value: "1" }
+    - { name: "kernel.panic", value: "10" }
+    - { name: "kernel.panic_on_oops", value: "1" }
+  become: true
