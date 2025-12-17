@@ -16,6 +16,16 @@
   ansible.builtin.debug:
     msg: "K3s {{ 'already installed: ' + k3s_installed_version.stdout.split()[2] if k3s_binary.stat.exists else 'not installed' }}"
 
+- name: Set cluster init for first server
+  ansible.builtin.set_fact:
+    k3s_server_init: true
+  when: inventory_hostname == groups['k3s_servers'][0]
+
+- name: Set cluster init for other servers
+  ansible.builtin.set_fact:
+    k3s_server_init: false
+  when: inventory_hostname != groups['k3s_servers'][0]
+
 - name: Create K3s config directory
   ansible.builtin.file:
     path: "{{ k3s_config_dir }}"
@@ -60,14 +70,13 @@
       become: true
 
     - name: Wait for K3s API to be available
-      ansible.builtin.uri:
-        url: https://127.0.0.1:6443/healthz
-        validate_certs: false
-        status_code: 200
+      ansible.builtin.command: curl -k https://127.0.0.1:6443/readyz
       register: api_health
-      until: api_health.status == 200
+      until: api_health.rc == 0
       retries: 30
       delay: 5
+      changed_when: false
+      become: true
 
 - name: Join additional K3s servers
   when: not (k3s_server_init | default(false))

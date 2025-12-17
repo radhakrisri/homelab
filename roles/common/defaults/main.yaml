@@ -1,0 +1,12 @@
+---
+k3s_firewall_ports:
+  - port: 6443
+    proto: tcp
+  - port: 10250
+    proto: tcp
+  - port: 8472
+    proto: udp
+  - port: 2379
+    proto: tcp
+  - port: 2380
+    proto: tcp
