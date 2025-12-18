@@ -30,7 +30,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
     prometheus_namespace: "{{ prometheus_namespace | default('homelab') }}"
     blocky_namespace: "{{ blocky_namespace | default('homelab') }}"
     vault_namespace: "{{ vault_namespace | default('homelab') }}"

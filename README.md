@@ -60,10 +60,10 @@ ansible-playbook -i inventories/production.yaml playbooks/site.yaml --tags k3s-a
 
 ### 5. Access Your Cluster
 
-After deployment, the kubeconfig is saved to `.agent-workarea/kubeconfig`:
+After deployment, the kubeconfig is saved to `kubeconfig`:
 
 ```bash
-export KUBECONFIG=$(pwd)/.agent-workarea/kubeconfig
+export KUBECONFIG=$(pwd)/kubeconfig
 kubectl get nodes
 ```
 

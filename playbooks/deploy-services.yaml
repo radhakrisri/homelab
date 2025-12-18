@@ -17,7 +17,7 @@
   hosts: k3s_servers[0]
   gather_facts: true
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tasks:
     - name: Verify kubeconfig exists
       ansible.builtin.stat:
@@ -45,7 +45,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tags:
     - services
     - monitoring
@@ -61,7 +61,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tags:
     - services
     - dns
@@ -76,7 +76,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tags:
     - services
     - secrets
@@ -91,7 +91,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tags:
     - services
     - sso
@@ -106,7 +106,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tags:
     - services
     - traefik

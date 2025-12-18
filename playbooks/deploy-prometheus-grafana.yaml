@@ -15,7 +15,7 @@
   hosts: k3s_servers[0]
   gather_facts: true
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
   tasks:
     - name: Verify kubeconfig exists
       ansible.builtin.stat:
