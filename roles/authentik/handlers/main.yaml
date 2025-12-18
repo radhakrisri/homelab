@@ -1,0 +1,3 @@
+---
+# Handlers for Authentik role
+# Currently no handlers needed as Helm manages the lifecycle

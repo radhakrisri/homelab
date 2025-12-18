@@ -1,0 +1,15 @@
+---
+# Handlers for Blocky role
+
+- name: Restart blocky
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ blocky_release_name }}"
+        namespace: "{{ blocky_namespace }}"
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "{{ ansible_date_time.iso8601 }}"

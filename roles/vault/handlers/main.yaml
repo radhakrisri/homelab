@@ -1,0 +1,3 @@
+---
+# Handlers for Vault role
+# Currently no handlers needed as Helm manages the lifecycle

@@ -1,0 +1,3 @@
+---
+# Handlers for Traefik Dashboard role
+# Currently no handlers needed as resources are managed declaratively
