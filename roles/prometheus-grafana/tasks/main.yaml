@@ -1,13 +1,15 @@
 ---
 # Prometheus & Grafana Stack Deployment Tasks
 
-- name: Warn about Grafana password
-  ansible.builtin.debug:
-    msg:
-      - "WARNING: Using default or weak Grafana password!"
-      - "For production, set a strong password using Ansible Vault:"
-      - "  ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'"
-  when: grafana_admin_password == 'CHANGE-ME-PLEASE' or grafana_admin_password == 'admin'
+- name: Validate Grafana password
+  ansible.builtin.assert:
+    that:
+      - vault_grafana_admin_password is defined
+      - vault_grafana_admin_password != ''
+    fail_msg: |
+      Grafana admin password is required!
+      Set vault_grafana_admin_password in your inventory using Ansible Vault:
+        ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
 
 - name: Create namespace for monitoring stack
   kubernetes.core.k8s:

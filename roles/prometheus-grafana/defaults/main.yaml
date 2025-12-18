@@ -4,7 +4,8 @@
 prometheus_release_name: "prometheus"
 prometheus_namespace: "{{ k3s_services_namespace | default('homelab') }}"
 prometheus_chart: "prometheus-community/kube-prometheus-stack"
-prometheus_chart_version: "latest"
+# Pinned to stable version - update as needed
+prometheus_chart_version: "55.5.0"
 
 # Storage settings
 prometheus_storage_class: "local-path"
@@ -14,9 +15,10 @@ alertmanager_storage_size: "2Gi"
 
 # Grafana settings
 grafana_admin_user: "admin"
-# IMPORTANT: Change this password! Use Ansible Vault for production:
+# REQUIRED: Set this password using Ansible Vault for production:
 # ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
-grafana_admin_password: "{{ vault_grafana_admin_password | default('CHANGE-ME-PLEASE') }}"
+# Default is intentionally obvious to prevent accidental production use
+grafana_admin_password: "{{ vault_grafana_admin_password }}"
 grafana_storage_size: "5Gi"
 grafana_ingress_enabled: false
 grafana_ingress_host: "grafana.homelab.local"

@@ -22,7 +22,8 @@ helm_repos:
 prometheus_enabled: true
 prometheus_release_name: "prometheus"
 prometheus_chart: "prometheus-community/kube-prometheus-stack"
-prometheus_chart_version: "latest"
+# Pinned versions for stability - update as needed
+prometheus_chart_version: "55.5.0"
 prometheus_storage_class: "local-path"
 prometheus_retention: "30d"
 prometheus_storage_size: "10Gi"
@@ -47,7 +48,7 @@ blocky_service_port: 53
 vault_enabled: true
 vault_release_name: "vault"
 vault_chart: "hashicorp/vault"
-vault_chart_version: "latest"
+vault_chart_version: "0.27.0"
 vault_storage_size: "10Gi"
 vault_ui_enabled: true
 vault_dev_mode: false
@@ -57,7 +58,7 @@ vault_storage_class: "local-path"
 authentik_enabled: true
 authentik_release_name: "authentik"
 authentik_chart: "authentik/authentik"
-authentik_chart_version: "latest"
+authentik_chart_version: "2023.10.4"
 # REQUIRED: Set these in your inventory using Ansible Vault:
 # ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
 # ansible-vault encrypt_string 'your-db-password' --name 'vault_authentik_postgresql_password'

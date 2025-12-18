@@ -8,6 +8,21 @@
       - vault_namespace is defined
     fail_msg: "Required Vault variables are not defined"
 
+- name: Display security warning
+  ansible.builtin.debug:
+    msg:
+      - "========================================="
+      - "VAULT SECURITY NOTICE"
+      - "========================================="
+      - "TLS is disabled in the default configuration."
+      - "This is acceptable for homelab/development use."
+      - "For production, enable TLS by:"
+      - "  1. Creating TLS certificates"
+      - "  2. Configuring Vault listener with TLS"
+      - "  3. Using ingress with TLS termination"
+      - "========================================="
+  when: not vault_dev_mode
+
 - name: Create namespace for Vault
   kubernetes.core.k8s:
     name: "{{ vault_namespace }}"
