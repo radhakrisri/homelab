@@ -1,0 +1,21 @@
+---
+# Authentik Configuration
+# Variables for the authentik role
+
+# Enable/disable service
+authentik_enabled: true
+
+# Release configuration
+authentik_release_name: "authentik"
+authentik_chart: "authentik/authentik"
+authentik_chart_version: "2023.10.4"
+
+# REQUIRED: Set these in your inventory using Ansible Vault:
+# ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
+# ansible-vault encrypt_string 'your-db-password' --name 'vault_authentik_postgresql_password'
+# authentik_secret_key: "{{ vault_authentik_secret_key }}"
+# authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
+
+# Storage settings
+authentik_storage_class: "local-path"
+authentik_storage_size: "5Gi"

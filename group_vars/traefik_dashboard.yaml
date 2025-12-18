@@ -1,0 +1,10 @@
+---
+# Traefik Dashboard Configuration
+# Variables for the traefik-dashboard role
+
+# Enable/disable service
+traefik_dashboard_enabled: true
+
+# Dashboard settings
+traefik_dashboard_port: 9000
+traefik_dashboard_service_type: "ClusterIP"

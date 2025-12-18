@@ -1,6 +1,12 @@
 ---
-# K3s Services Configuration
-# These services will be deployed on the K3s cluster
+# K3s Services - Common Configuration
+# Shared variables across all homelab services
+# Service-specific configuration is in separate files:
+# - group_vars/prometheus_grafana.yaml
+# - group_vars/blocky.yaml
+# - group_vars/vault.yaml
+# - group_vars/authentik.yaml
+# - group_vars/traefik_dashboard.yaml
 
 # Namespace for homelab services
 k3s_services_namespace: "homelab"
@@ -17,57 +23,3 @@ helm_repos:
     url: https://traefik.github.io/charts
   - name: authentik
     url: https://charts.goauthentik.io
-
-# Prometheus & Grafana settings
-prometheus_enabled: true
-prometheus_release_name: "prometheus"
-prometheus_chart: "prometheus-community/kube-prometheus-stack"
-# Pinned versions for stability - update as needed
-prometheus_chart_version: "55.5.0"
-prometheus_storage_class: "local-path"
-prometheus_retention: "30d"
-prometheus_storage_size: "10Gi"
-
-# IMPORTANT: Set secure password using Ansible Vault:
-# ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
-# grafana_admin_password: "{{ vault_grafana_admin_password }}"
-grafana_storage_size: "5Gi"
-
-# Blocky settings
-blocky_enabled: true
-blocky_release_name: "blocky"
-blocky_chart_version: "10.5.2"
-blocky_upstream_dns:
-  - 1.1.1.1
-  - 1.0.0.1
-blocky_blocking_enabled: true
-blocky_service_type: "LoadBalancer"
-blocky_service_port: 53
-
-# Vault settings
-vault_enabled: true
-vault_release_name: "vault"
-vault_chart: "hashicorp/vault"
-vault_chart_version: "0.27.0"
-vault_storage_size: "10Gi"
-vault_ui_enabled: true
-vault_dev_mode: false
-vault_storage_class: "local-path"
-
-# Authentik settings
-authentik_enabled: true
-authentik_release_name: "authentik"
-authentik_chart: "authentik/authentik"
-authentik_chart_version: "2023.10.4"
-# REQUIRED: Set these in your inventory using Ansible Vault:
-# ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
-# ansible-vault encrypt_string 'your-db-password' --name 'vault_authentik_postgresql_password'
-# authentik_secret_key: "{{ vault_authentik_secret_key }}"
-# authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
-authentik_storage_class: "local-path"
-authentik_storage_size: "5Gi"
-
-# Traefik Dashboard settings
-traefik_dashboard_enabled: true
-traefik_dashboard_port: 9000
-traefik_dashboard_service_type: "ClusterIP"

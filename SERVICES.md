@@ -313,18 +313,40 @@ ansible-playbook -i inventories/production.yaml playbooks/site.yaml -e deploy_se
 
 ### Global Service Configuration
 
-Edit `group_vars/k3s_services.yaml` for global service settings:
+Service configuration is organized in role-specific files:
+
+**Configuration Files:**
+- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos)
+- `group_vars/prometheus_grafana.yaml` - Prometheus & Grafana configuration
+- `group_vars/blocky.yaml` - Blocky DNS configuration
+- `group_vars/vault.yaml` - Vault configuration
+- `group_vars/authentik.yaml` - Authentik configuration
+- `group_vars/traefik_dashboard.yaml` - Traefik Dashboard configuration
+
+Example common settings in `group_vars/k3s_services.yaml`:
 
 ```yaml
 # Namespace for all services
 k3s_services_namespace: homelab
 
-# Enable/disable services
+# Helm repositories (shared across services)
+helm_repos:
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: hashicorp
+    url: https://helm.releases.hashicorp.com
+```
+
+Example service-specific settings in `group_vars/prometheus_grafana.yaml`:
+
+```yaml
+# Enable/disable service
 prometheus_enabled: true
-blocky_enabled: true
-vault_enabled: true
-authentik_enabled: true
-traefik_dashboard_enabled: true
+
+# Chart configuration
+prometheus_chart_version: "55.5.0"
+prometheus_storage_size: "10Gi"
+grafana_storage_size: "5Gi"
 ```
 
 ### Inventory-Level Configuration
