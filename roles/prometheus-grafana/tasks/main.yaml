@@ -1,0 +1,150 @@
+---
+# Prometheus & Grafana Stack Deployment Tasks
+
+- name: Create namespace for monitoring stack
+  kubernetes.core.k8s:
+    name: "{{ prometheus_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+
+- name: Add Prometheus Community Helm repository
+  kubernetes.core.helm_repository:
+    name: prometheus-community
+    repo_url: https://prometheus-community.github.io/helm-charts
+    state: present
+
+- name: Add Grafana Helm repository
+  kubernetes.core.helm_repository:
+    name: grafana
+    repo_url: https://grafana.github.io/helm-charts
+    state: present
+
+- name: Update Helm repositories
+  kubernetes.core.helm:
+    release_state: present
+    update_repo_cache: true
+
+- name: Deploy kube-prometheus-stack
+  kubernetes.core.helm:
+    name: "{{ prometheus_release_name }}"
+    chart_ref: "{{ prometheus_chart }}"
+    chart_version: "{{ prometheus_chart_version if prometheus_chart_version != 'latest' else omit }}"
+    release_namespace: "{{ prometheus_namespace }}"
+    create_namespace: true
+    kubeconfig: "{{ kubeconfig_path }}"
+    values:
+      prometheus:
+        prometheusSpec:
+          retention: "{{ prometheus_retention }}"
+          replicas: "{{ prometheus_replicas }}"
+          storageSpec:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: "{{ prometheus_storage_class }}"
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "{{ prometheus_storage_size }}"
+          serviceMonitorSelectorNilUsesHelmValues: false
+        service:
+          type: "{{ prometheus_service_type }}"
+        ingress:
+          enabled: "{{ prometheus_ingress_enabled }}"
+          hosts:
+            - "{{ prometheus_ingress_host }}"
+      
+      alertmanager:
+        enabled: "{{ alertmanager_enabled }}"
+        alertmanagerSpec:
+          replicas: "{{ alertmanager_replicas }}"
+          storage:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: "{{ prometheus_storage_class }}"
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "{{ alertmanager_storage_size }}"
+      
+      grafana:
+        enabled: true
+        adminUser: "{{ grafana_admin_user }}"
+        adminPassword: "{{ grafana_admin_password }}"
+        persistence:
+          enabled: true
+          storageClassName: "{{ prometheus_storage_class }}"
+          size: "{{ grafana_storage_size }}"
+        service:
+          type: ClusterIP
+        ingress:
+          enabled: "{{ grafana_ingress_enabled }}"
+          hosts:
+            - "{{ grafana_ingress_host }}"
+        
+        # Default dashboards
+        defaultDashboardsEnabled: true
+        
+        # Additional dashboards can be configured here
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: 'default'
+                orgId: 1
+                folder: ''
+                type: file
+                disableDeletion: false
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/default
+      
+      # Node exporter settings
+      nodeExporter:
+        enabled: true
+      
+      # Kube state metrics
+      kubeStateMetrics:
+        enabled: true
+      
+      # Prometheus operator settings
+      prometheusOperator:
+        enabled: true
+  register: prometheus_deploy_result
+
+- name: Wait for Prometheus pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ prometheus_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=prometheus"
+    kubeconfig: "{{ kubeconfig_path }}"
+  register: prometheus_pods
+  until: prometheus_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+
+- name: Wait for Grafana pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ prometheus_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=grafana"
+    kubeconfig: "{{ kubeconfig_path }}"
+  register: grafana_pods
+  until: grafana_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+
+- name: Display Grafana access information
+  ansible.builtin.debug:
+    msg:
+      - "Grafana has been deployed successfully!"
+      - "Namespace: {{ prometheus_namespace }}"
+      - "Release: {{ prometheus_release_name }}"
+      - "Admin User: {{ grafana_admin_user }}"
+      - "To access Grafana, run: kubectl port-forward -n {{ prometheus_namespace }} svc/{{ prometheus_release_name }}-grafana 3000:80"
+      - "Then open http://localhost:3000 in your browser"

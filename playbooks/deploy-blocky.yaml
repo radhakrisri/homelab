@@ -1,0 +1,32 @@
+---
+# Deploy Blocky DNS and Ad Blocker
+#
+# Usage:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-blocky.yaml
+#
+# This playbook deploys Blocky which provides:
+# - DNS server for your homelab
+# - Ad blocking capabilities
+# - Prometheus metrics
+
+- name: Deploy Blocky DNS and Ad Blocker
+  hosts: k3s_servers[0]
+  gather_facts: true
+  vars:
+    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+  tasks:
+    - name: Verify kubeconfig exists
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig_file
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if kubeconfig not found
+      ansible.builtin.fail:
+        msg: "Kubeconfig not found at {{ kubeconfig_path }}. Please deploy the K3s cluster first."
+      when: not kubeconfig_file.stat.exists
+
+    - name: Include blocky role
+      ansible.builtin.include_role:
+        name: blocky

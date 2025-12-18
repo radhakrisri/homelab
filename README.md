@@ -96,6 +96,13 @@ kubectl get nodes
 | `site.yaml` | Full cluster deployment |
 | `reset.yaml` | Complete cluster teardown |
 | `upgrade.yaml` | Rolling upgrade to new K3s version |
+| `deploy-services.yaml` | Deploy all homelab services |
+| `deploy-prometheus-grafana.yaml` | Deploy monitoring stack |
+| `deploy-blocky.yaml` | Deploy DNS and ad blocker |
+| `deploy-vault.yaml` | Deploy secret management |
+| `deploy-authentik.yaml` | Deploy SSO/SAML |
+| `deploy-traefik-dashboard.yaml` | Enable Traefik dashboard |
+| `uninstall-services.yaml` | Uninstall all services |
 
 ## Upgrade
 
@@ -112,6 +119,135 @@ To completely remove K3s from all nodes:
 
 ```bash
 ansible-playbook -i inventories/production.yaml playbooks/reset.yaml
+```
+
+## Homelab Services
+
+After deploying the K3s cluster, you can deploy additional homelab services:
+
+### Available Services
+
+1. **Prometheus & Grafana** - Complete monitoring stack with dashboards
+2. **Blocky** - DNS server with ad-blocking capabilities
+3. **Vault** - Secret management with web UI
+4. **Authentik** - SSO/SAML/OAuth2 authentication
+5. **Traefik Dashboard** - Ingress controller UI
+
+### Deploy All Services
+
+```bash
+# Deploy all services at once
+ansible-playbook -i inventories/production.yaml playbooks/deploy-services.yaml
+
+# Or include services during cluster deployment
+ansible-playbook -i inventories/production.yaml playbooks/site.yaml -e deploy_services=true
+```
+
+### Deploy Individual Services
+
+```bash
+# Deploy only Prometheus & Grafana
+ansible-playbook -i inventories/production.yaml playbooks/deploy-prometheus-grafana.yaml
+
+# Deploy only Blocky DNS
+ansible-playbook -i inventories/production.yaml playbooks/deploy-blocky.yaml
+
+# Deploy only Vault
+ansible-playbook -i inventories/production.yaml playbooks/deploy-vault.yaml
+
+# Deploy only Authentik
+ansible-playbook -i inventories/production.yaml playbooks/deploy-authentik.yaml
+
+# Enable Traefik Dashboard
+ansible-playbook -i inventories/production.yaml playbooks/deploy-traefik-dashboard.yaml
+```
+
+### Deploy Specific Services with Tags
+
+```bash
+# Deploy only monitoring
+ansible-playbook -i inventories/production.yaml playbooks/deploy-services.yaml --tags monitoring
+
+# Deploy only Vault
+ansible-playbook -i inventories/production.yaml playbooks/deploy-services.yaml --tags vault
+```
+
+### Uninstall Services
+
+```bash
+# Uninstall all services
+ansible-playbook -i inventories/production.yaml playbooks/uninstall-services.yaml
+
+# Uninstall specific service
+ansible-playbook -i inventories/production.yaml playbooks/uninstall-services.yaml --tags prometheus
+```
+
+### Access Services
+
+After deployment, services can be accessed via port-forwarding:
+
+```bash
+# Grafana (monitoring dashboards)
+kubectl port-forward -n homelab svc/prometheus-grafana 3000:80
+# Open http://localhost:3000 (default: admin/admin)
+
+# Prometheus (metrics)
+kubectl port-forward -n homelab svc/prometheus-kube-prometheus-prometheus 9090:9090
+# Open http://localhost:9090
+
+# Blocky (DNS API)
+kubectl port-forward -n homelab svc/blocky 4000:4000
+# Open http://localhost:4000
+
+# Vault (secrets management)
+kubectl port-forward -n homelab svc/vault 8200:8200
+# Open http://localhost:8200
+
+# Authentik (SSO)
+kubectl port-forward -n homelab svc/authentik-server 80:80
+# Open http://localhost
+
+# Traefik Dashboard
+kubectl port-forward -n kube-system svc/traefik-dashboard 9000:9000
+# Open http://localhost:9000/dashboard/
+```
+
+### Service Configuration
+
+Configure services by editing `group_vars/k3s_services.yaml` or by overriding variables in your inventory:
+
+```yaml
+# Enable/disable services
+prometheus_enabled: true
+blocky_enabled: true
+vault_enabled: true
+authentik_enabled: true
+traefik_dashboard_enabled: true
+
+# Configure Grafana
+grafana_admin_password: "{{ vault_grafana_admin_password }}"
+grafana_storage_size: "5Gi"
+
+# Configure Blocky DNS
+blocky_upstream_dns:
+  - 1.1.1.1
+  - 8.8.8.8
+
+# Configure Vault
+vault_dev_mode: false  # Set to true for development only
+vault_storage_size: "10Gi"
+
+# Configure Authentik
+authentik_secret_key: "{{ vault_authentik_secret_key }}"
+authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
+```
+
+For production deployments, store sensitive values in Ansible Vault:
+
+```bash
+# Encrypt sensitive variables
+ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
+ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
 ```
 
 ## Configuration Options

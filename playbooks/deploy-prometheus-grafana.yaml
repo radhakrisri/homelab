@@ -1,0 +1,34 @@
+---
+# Deploy Prometheus & Grafana Monitoring Stack
+#
+# Usage:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-prometheus-grafana.yaml
+#
+# This playbook deploys the kube-prometheus-stack which includes:
+# - Prometheus for metrics collection
+# - Grafana for visualization
+# - AlertManager for alerting
+# - Node exporter for node metrics
+# - Kube state metrics
+
+- name: Deploy Prometheus & Grafana
+  hosts: k3s_servers[0]
+  gather_facts: true
+  vars:
+    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+  tasks:
+    - name: Verify kubeconfig exists
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig_file
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if kubeconfig not found
+      ansible.builtin.fail:
+        msg: "Kubeconfig not found at {{ kubeconfig_path }}. Please deploy the K3s cluster first."
+      when: not kubeconfig_file.stat.exists
+
+    - name: Include prometheus-grafana role
+      ansible.builtin.include_role:
+        name: prometheus-grafana

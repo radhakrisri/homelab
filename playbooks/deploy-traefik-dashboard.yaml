@@ -1,0 +1,30 @@
+---
+# Enable Traefik Dashboard
+#
+# Usage:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-traefik-dashboard.yaml
+#
+# This playbook enables and exposes the Traefik dashboard
+# Note: K3s comes with Traefik pre-installed
+
+- name: Enable Traefik Dashboard
+  hosts: k3s_servers[0]
+  gather_facts: true
+  vars:
+    kubeconfig_path: "{{ playbook_dir }}/../.agent-workarea/kubeconfig"
+  tasks:
+    - name: Verify kubeconfig exists
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig_file
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if kubeconfig not found
+      ansible.builtin.fail:
+        msg: "Kubeconfig not found at {{ kubeconfig_path }}. Please deploy the K3s cluster first."
+      when: not kubeconfig_file.stat.exists
+
+    - name: Include traefik-dashboard role
+      ansible.builtin.include_role:
+        name: traefik-dashboard

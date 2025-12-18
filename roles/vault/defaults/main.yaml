@@ -1,0 +1,33 @@
+---
+# Vault Secret Management Role Defaults
+
+vault_release_name: "vault"
+vault_namespace: "{{ k3s_services_namespace | default('homelab') }}"
+vault_chart: "hashicorp/vault"
+vault_chart_version: "latest"
+
+# Vault UI settings
+vault_ui_enabled: true
+
+# Storage settings
+vault_storage_class: "local-path"
+vault_storage_size: "10Gi"
+
+# HA settings
+vault_ha_enabled: false
+vault_replicas: 1
+
+# Dev mode (not for production!)
+vault_dev_mode: false
+vault_dev_root_token: "root"
+
+# Service settings
+vault_service_type: "ClusterIP"
+vault_service_port: 8200
+
+# Ingress settings
+vault_ingress_enabled: false
+vault_ingress_host: "vault.homelab.local"
+
+# Auto unseal (for production)
+vault_auto_unseal_enabled: false

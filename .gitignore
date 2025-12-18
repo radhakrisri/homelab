@@ -14,3 +14,8 @@ inventories/*
 *.pem
 *.key
 secrets/
+
+# Helm
+helm-*.tgz
+charts/
+*.lock

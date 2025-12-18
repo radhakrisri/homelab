@@ -1,0 +1,14 @@
+---
+# Traefik Dashboard Role Defaults
+
+traefik_dashboard_enabled: true
+traefik_namespace: "kube-system"
+traefik_dashboard_port: 9000
+traefik_dashboard_service_type: "ClusterIP"
+
+# Ingress settings
+traefik_dashboard_ingress_enabled: false
+traefik_dashboard_ingress_host: "traefik.homelab.local"
+
+# Authentication (optional)
+traefik_dashboard_auth_enabled: false

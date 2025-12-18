@@ -1,0 +1,156 @@
+---
+# Vault Secret Management Deployment Tasks
+
+- name: Create namespace for Vault
+  kubernetes.core.k8s:
+    name: "{{ vault_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+
+- name: Add HashiCorp Helm repository
+  kubernetes.core.helm_repository:
+    name: hashicorp
+    repo_url: https://helm.releases.hashicorp.com
+    state: present
+
+- name: Update Helm repositories
+  kubernetes.core.helm:
+    release_state: present
+    update_repo_cache: true
+
+- name: Deploy Vault
+  kubernetes.core.helm:
+    name: "{{ vault_release_name }}"
+    chart_ref: "{{ vault_chart }}"
+    chart_version: "{{ vault_chart_version if vault_chart_version != 'latest' else omit }}"
+    release_namespace: "{{ vault_namespace }}"
+    create_namespace: true
+    kubeconfig: "{{ kubeconfig_path }}"
+    values:
+      server:
+        enabled: true
+        image:
+          repository: hashicorp/vault
+          tag: latest
+        
+        # High availability configuration
+        ha:
+          enabled: "{{ vault_ha_enabled }}"
+          replicas: "{{ vault_replicas }}"
+          raft:
+            enabled: "{{ vault_ha_enabled }}"
+            setNodeId: true
+            config: |
+              ui = true
+              
+              listener "tcp" {
+                tls_disable = 1
+                address = "[::]:8200"
+                cluster_address = "[::]:8201"
+              }
+              
+              storage "raft" {
+                path = "/vault/data"
+              }
+              
+              service_registration "kubernetes" {}
+        
+        # Development mode (not for production)
+        dev:
+          enabled: "{{ vault_dev_mode }}"
+          devRootToken: "{{ vault_dev_root_token }}"
+        
+        # Standalone mode configuration (when HA is disabled)
+        standalone:
+          enabled: "{{ not vault_ha_enabled }}"
+          config: |
+            ui = true
+            
+            listener "tcp" {
+              tls_disable = 1
+              address = "[::]:8200"
+              cluster_address = "[::]:8201"
+            }
+            
+            storage "file" {
+              path = "/vault/data"
+            }
+            
+            service_registration "kubernetes" {}
+        
+        # Data storage
+        dataStorage:
+          enabled: true
+          storageClass: "{{ vault_storage_class }}"
+          size: "{{ vault_storage_size }}"
+        
+        # Service configuration
+        service:
+          enabled: true
+          type: "{{ vault_service_type }}"
+          port: "{{ vault_service_port }}"
+        
+        # Ingress configuration
+        ingress:
+          enabled: "{{ vault_ingress_enabled }}"
+          hosts:
+            - host: "{{ vault_ingress_host }}"
+              paths:
+                - /
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      
+      # UI configuration
+      ui:
+        enabled: "{{ vault_ui_enabled }}"
+        serviceType: "{{ vault_service_type }}"
+      
+      # Injector for Kubernetes secrets
+      injector:
+        enabled: true
+        image:
+          repository: hashicorp/vault-k8s
+          tag: latest
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+  register: vault_deploy_result
+
+- name: Wait for Vault pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ vault_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=vault"
+    kubeconfig: "{{ kubeconfig_path }}"
+  register: vault_pods
+  until: vault_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+
+- name: Display Vault access information
+  ansible.builtin.debug:
+    msg:
+      - "Vault has been deployed successfully!"
+      - "Namespace: {{ vault_namespace }}"
+      - "Release: {{ vault_release_name }}"
+      - "UI Enabled: {{ vault_ui_enabled }}"
+      - "{% if vault_dev_mode %}WARNING: Running in DEV mode - NOT for production!{% endif %}"
+      - "{% if vault_dev_mode %}Dev Root Token: {{ vault_dev_root_token }}{% endif %}"
+      - "To access Vault UI, run: kubectl port-forward -n {{ vault_namespace }} svc/{{ vault_release_name }} {{ vault_service_port }}:{{ vault_service_port }}"
+      - "Then open http://localhost:{{ vault_service_port }} in your browser"
+      - "{% if not vault_dev_mode %}Initialize Vault: kubectl exec -n {{ vault_namespace }} {{ vault_release_name }}-0 -- vault operator init{% endif %}"
+      - "{% if not vault_dev_mode %}Unseal Vault: kubectl exec -n {{ vault_namespace }} {{ vault_release_name }}-0 -- vault operator unseal <unseal-key>{% endif %}"
