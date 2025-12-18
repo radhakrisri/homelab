@@ -313,21 +313,22 @@ ansible-playbook -i inventories/production.yaml playbooks/site.yaml -e deploy_se
 
 ### Global Service Configuration
 
-Service configuration is organized in role-specific files:
+Service configuration follows Ansible best practices:
 
-**Configuration Files:**
-- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos)
-- `group_vars/prometheus_grafana.yaml` - Prometheus & Grafana configuration
-- `group_vars/blocky.yaml` - Blocky DNS configuration
-- `group_vars/vault.yaml` - Vault configuration
-- `group_vars/authentik.yaml` - Authentik configuration
-- `group_vars/traefik_dashboard.yaml` - Traefik Dashboard configuration
+**Configuration Structure:**
+- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos, service toggles)
+- `roles/<role>/defaults/main.yaml` - Service-specific defaults (easily overridden)
 
 Example common settings in `group_vars/k3s_services.yaml`:
 
 ```yaml
 # Namespace for all services
 k3s_services_namespace: homelab
+
+# Service deployment toggles
+prometheus_enabled: true
+blocky_enabled: true
+vault_enabled: true
 
 # Helm repositories (shared across services)
 helm_repos:
@@ -337,21 +338,19 @@ helm_repos:
     url: https://helm.releases.hashicorp.com
 ```
 
-Example service-specific settings in `group_vars/prometheus_grafana.yaml`:
+Each role's defaults are in `roles/<role>/defaults/main.yaml`. For example, `roles/prometheus-grafana/defaults/main.yaml`:
 
 ```yaml
-# Enable/disable service
-prometheus_enabled: true
-
 # Chart configuration
 prometheus_chart_version: "55.5.0"
 prometheus_storage_size: "10Gi"
 grafana_storage_size: "5Gi"
+grafana_admin_password: "{{ vault_grafana_admin_password }}"
 ```
 
 ### Inventory-Level Configuration
 
-Override in your inventory file:
+Override role defaults in your inventory file:
 
 ```yaml
 all:
@@ -363,6 +362,8 @@ all:
       - 1.1.1.1
       - 9.9.9.9
 ```
+
+To see all available variables for a service, check `roles/<role>/defaults/main.yaml`.
 
 ### Using Ansible Vault for Secrets
 

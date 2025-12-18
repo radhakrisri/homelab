@@ -214,41 +214,45 @@ kubectl port-forward -n kube-system svc/traefik-dashboard 9000:9000
 
 ### Service Configuration
 
-Configure services by editing role-specific group_vars files or by overriding variables in your inventory:
+Service configuration is managed through role defaults and can be overridden in your inventory:
 
-**Configuration Files:**
-- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos)
-- `group_vars/prometheus_grafana.yaml` - Prometheus & Grafana settings
-- `group_vars/blocky.yaml` - Blocky DNS settings
-- `group_vars/vault.yaml` - Vault settings
-- `group_vars/authentik.yaml` - Authentik settings
-- `group_vars/traefik_dashboard.yaml` - Traefik Dashboard settings
+**Configuration Structure:**
+- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos, service toggles)
+- `roles/<role>/defaults/main.yaml` - Service-specific default configuration
+
+**To customize services**, override variables in your inventory file:
 
 ```yaml
-# Enable/disable services
-prometheus_enabled: true
-blocky_enabled: true
-vault_enabled: true
-authentik_enabled: true
-traefik_dashboard_enabled: true
-
-# Configure Grafana (in group_vars/prometheus_grafana.yaml)
-grafana_admin_password: "{{ vault_grafana_admin_password }}"
-grafana_storage_size: "5Gi"
-
-# Configure Blocky DNS (in group_vars/blocky.yaml)
-blocky_upstream_dns:
-  - 1.1.1.1
-  - 8.8.8.8
-
-# Configure Vault (in group_vars/vault.yaml)
-vault_dev_mode: false  # Set to true for development only
-vault_storage_size: "10Gi"
-
-# Configure Authentik (in group_vars/authentik.yaml)
-authentik_secret_key: "{{ vault_authentik_secret_key }}"
-authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
+# In your inventory file (e.g., inventories/production.yaml)
+all:
+  vars:
+    # Enable/disable services (in group_vars/k3s_services.yaml)
+    prometheus_enabled: true
+    blocky_enabled: true
+    vault_enabled: true
+    authentik_enabled: true
+    traefik_dashboard_enabled: true
+    
+    # Override service-specific settings
+    # Grafana configuration (see roles/prometheus-grafana/defaults/main.yaml)
+    grafana_admin_password: "{{ vault_grafana_admin_password }}"
+    grafana_storage_size: "5Gi"
+    
+    # Blocky DNS configuration (see roles/blocky/defaults/main.yaml)
+    blocky_upstream_dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    
+    # Vault configuration (see roles/vault/defaults/main.yaml)
+    vault_dev_mode: false  # Set to true for development only
+    vault_storage_size: "10Gi"
+    
+    # Authentik configuration (see roles/authentik/defaults/main.yaml)
+    authentik_secret_key: "{{ vault_authentik_secret_key }}"
+    authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
 ```
+
+For a complete list of configurable variables, see each role's `defaults/main.yaml` file.
 
 For production deployments, store sensitive values in Ansible Vault:
 
