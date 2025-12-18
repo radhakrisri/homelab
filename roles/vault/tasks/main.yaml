@@ -1,6 +1,13 @@
 ---
 # Vault Secret Management Deployment Tasks
 
+- name: Check required variables
+  ansible.builtin.assert:
+    that:
+      - vault_storage_class is defined
+      - vault_namespace is defined
+    fail_msg: "Required Vault variables are not defined"
+
 - name: Create namespace for Vault
   kubernetes.core.k8s:
     name: "{{ vault_namespace }}"
@@ -33,7 +40,7 @@
         enabled: true
         image:
           repository: hashicorp/vault
-          tag: latest
+          tag: "1.15.2"
         
         # High availability configuration
         ha:
@@ -119,7 +126,7 @@
         enabled: true
         image:
           repository: hashicorp/vault-k8s
-          tag: latest
+          tag: "1.3.1"
         resources:
           requests:
             memory: "128Mi"

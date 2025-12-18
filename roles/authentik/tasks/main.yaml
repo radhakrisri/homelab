@@ -1,6 +1,22 @@
 ---
 # Authentik SSO/SAML Deployment Tasks
 
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - vault_authentik_secret_key is defined
+      - vault_authentik_postgresql_password is defined
+      - vault_authentik_secret_key != ''
+      - vault_authentik_postgresql_password != ''
+    fail_msg: |
+      Required Authentik secrets are not set!
+      Please set vault_authentik_secret_key and vault_authentik_postgresql_password in your inventory.
+      Generate secure values:
+        openssl rand -hex 32
+      Then encrypt with Ansible Vault:
+        ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
+        ansible-vault encrypt_string 'your-db-password' --name 'vault_authentik_postgresql_password'
+
 - name: Create namespace for Authentik
   kubernetes.core.k8s:
     name: "{{ authentik_namespace }}"

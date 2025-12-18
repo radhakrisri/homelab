@@ -27,7 +27,9 @@ prometheus_storage_class: "local-path"
 prometheus_retention: "30d"
 prometheus_storage_size: "10Gi"
 
-grafana_admin_password: "{{ vault_grafana_admin_password | default('admin') }}"
+# IMPORTANT: Set secure password using Ansible Vault:
+# ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
+# grafana_admin_password: "{{ vault_grafana_admin_password }}"
 grafana_storage_size: "5Gi"
 
 # Blocky settings
@@ -56,8 +58,11 @@ authentik_enabled: true
 authentik_release_name: "authentik"
 authentik_chart: "authentik/authentik"
 authentik_chart_version: "latest"
-authentik_secret_key: "{{ vault_authentik_secret_key | default('changeme') }}"
-authentik_postgresql_password: "{{ vault_authentik_postgresql_password | default('changeme') }}"
+# REQUIRED: Set these in your inventory using Ansible Vault:
+# ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
+# ansible-vault encrypt_string 'your-db-password' --name 'vault_authentik_postgresql_password'
+# authentik_secret_key: "{{ vault_authentik_secret_key }}"
+# authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
 authentik_storage_class: "local-path"
 authentik_storage_size: "5Gi"
 

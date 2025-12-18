@@ -39,7 +39,7 @@
           spec:
             containers:
               - name: blocky
-                image: ghcr.io/0xerr0r/blocky:latest
+                image: ghcr.io/0xerr0r/blocky:v0.23
                 ports:
                   - name: dns-udp
                     containerPort: "{{ blocky_service_port }}"

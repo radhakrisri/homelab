@@ -14,7 +14,9 @@ alertmanager_storage_size: "2Gi"
 
 # Grafana settings
 grafana_admin_user: "admin"
-grafana_admin_password: "{{ vault_grafana_admin_password | default('admin') }}"
+# IMPORTANT: Change this password! Use Ansible Vault for production:
+# ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
+grafana_admin_password: "{{ vault_grafana_admin_password | default('CHANGE-ME-PLEASE') }}"
 grafana_storage_size: "5Gi"
 grafana_ingress_enabled: false
 grafana_ingress_host: "grafana.homelab.local"

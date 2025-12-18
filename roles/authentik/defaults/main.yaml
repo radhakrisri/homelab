@@ -7,11 +7,15 @@ authentik_chart: "authentik/authentik"
 authentik_chart_version: "latest"
 
 # Secret key for Authentik (generate with: openssl rand -hex 32)
-authentik_secret_key: "{{ vault_authentik_secret_key | default('changeme-please-use-vault') }}"
+# REQUIRED: Set vault_authentik_secret_key in your inventory!
+# ansible-vault encrypt_string 'your-secret-key-here' --name 'vault_authentik_secret_key'
+authentik_secret_key: "{{ vault_authentik_secret_key }}"
 
 # PostgreSQL settings
 authentik_postgresql_enabled: true
-authentik_postgresql_password: "{{ vault_authentik_postgresql_password | default('changeme-please-use-vault') }}"
+# REQUIRED: Set vault_authentik_postgresql_password in your inventory!
+# ansible-vault encrypt_string 'your-db-password-here' --name 'vault_authentik_postgresql_password'
+authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
 authentik_postgresql_database: "authentik"
 authentik_postgresql_user: "authentik"
 

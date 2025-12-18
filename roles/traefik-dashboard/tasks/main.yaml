@@ -18,58 +18,6 @@
     fail_msg: "Traefik is not installed. K3s should have Traefik pre-installed."
     success_msg: "Traefik is installed and running."
 
-- name: Update Traefik deployment to enable dashboard
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ kubeconfig_path }}"
-    definition:
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: traefik-config
-        namespace: "{{ traefik_namespace }}"
-      data:
-        traefik.yaml: |
-          api:
-            dashboard: true
-            insecure: true
-          
-          ping:
-            entryPoint: web
-          
-          providers:
-            kubernetesCRD: {}
-            kubernetesIngress: {}
-          
-          entryPoints:
-            web:
-              address: ":80"
-            websecure:
-              address: ":443"
-
-- name: Patch Traefik deployment to use ConfigMap
-  kubernetes.core.k8s:
-    state: patched
-    kubeconfig: "{{ kubeconfig_path }}"
-    kind: Deployment
-    name: traefik
-    namespace: "{{ traefik_namespace }}"
-    definition:
-      spec:
-        template:
-          spec:
-            volumes:
-              - name: config
-                configMap:
-                  name: traefik-config
-            containers:
-              - name: traefik
-                volumeMounts:
-                  - name: config
-                    mountPath: /etc/traefik
-                args:
-                  - "--configFile=/etc/traefik/traefik.yaml"
-
 - name: Create Traefik Dashboard Service
   kubernetes.core.k8s:
     state: present
@@ -135,3 +83,6 @@
       - "To access Traefik Dashboard, run: kubectl port-forward -n {{ traefik_namespace }} svc/traefik-dashboard {{ traefik_dashboard_port }}:{{ traefik_dashboard_port }}"
       - "Then open http://localhost:{{ traefik_dashboard_port }}/dashboard/ in your browser"
       - "Note: The trailing slash (/) is important!"
+      - ""
+      - "Note: Dashboard may require enabling in Traefik configuration if not already enabled."
+      - "Check K3s Traefik HelmChart resource: kubectl get helmchart traefik -n kube-system -o yaml"
