@@ -31,11 +31,6 @@
     repo_url: https://charts.goauthentik.io
     state: present
 
-- name: Update Helm repositories
-  kubernetes.core.helm:
-    release_state: present
-    update_repo_cache: true
-
 - name: Deploy Authentik
   kubernetes.core.helm:
     name: "{{ authentik_release_name }}"
@@ -125,16 +120,6 @@
             limits:
               cpu: 250m
               memory: 256Mi
-      
-      # Media storage
-      volumes:
-        - name: media
-          persistentVolumeClaim:
-            claimName: "{{ authentik_release_name }}-media"
-      
-      volumeMounts:
-        - name: media
-          mountPath: /media
   register: authentik_deploy_result
 
 - name: Create PVC for Authentik media

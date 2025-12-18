@@ -22,11 +22,6 @@
     repo_url: https://helm.releases.hashicorp.com
     state: present
 
-- name: Update Helm repositories
-  kubernetes.core.helm:
-    release_state: present
-    update_repo_cache: true
-
 - name: Deploy Vault
   kubernetes.core.helm:
     name: "{{ vault_release_name }}"
