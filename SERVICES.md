@@ -316,7 +316,7 @@ ansible-playbook -i inventories/production.yaml playbooks/site.yaml -e deploy_se
 Service configuration follows Ansible best practices:
 
 **Configuration Structure:**
-- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos, service toggles)
+- `group_vars/k3s_services.yaml` - Common settings (namespace, service toggles)
 - `roles/<role>/defaults/main.yaml` - Service-specific defaults (easily overridden)
 
 Example common settings in `group_vars/k3s_services.yaml`:
@@ -329,13 +329,8 @@ k3s_services_namespace: homelab
 prometheus_enabled: true
 blocky_enabled: true
 vault_enabled: true
-
-# Helm repositories (shared across services)
-helm_repos:
-  - name: prometheus-community
-    url: https://prometheus-community.github.io/helm-charts
-  - name: hashicorp
-    url: https://helm.releases.hashicorp.com
+authentik_enabled: true
+traefik_dashboard_enabled: true
 ```
 
 Each role's defaults are in `roles/<role>/defaults/main.yaml`. For example, `roles/prometheus-grafana/defaults/main.yaml`:

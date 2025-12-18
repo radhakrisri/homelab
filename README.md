@@ -217,7 +217,7 @@ kubectl port-forward -n kube-system svc/traefik-dashboard 9000:9000
 Service configuration is managed through role defaults and can be overridden in your inventory:
 
 **Configuration Structure:**
-- `group_vars/k3s_services.yaml` - Common settings (namespace, Helm repos, service toggles)
+- `group_vars/k3s_services.yaml` - Common settings (namespace, service toggles)
 - `roles/<role>/defaults/main.yaml` - Service-specific default configuration
 
 **To customize services**, override variables in your inventory file:

@@ -6,19 +6,6 @@
 # Namespace for homelab services
 k3s_services_namespace: "homelab"
 
-# Helm repositories
-helm_repos:
-  - name: prometheus-community
-    url: https://prometheus-community.github.io/helm-charts
-  - name: grafana
-    url: https://grafana.github.io/helm-charts
-  - name: hashicorp
-    url: https://helm.releases.hashicorp.com
-  - name: traefik
-    url: https://traefik.github.io/charts
-  - name: authentik
-    url: https://charts.goauthentik.io
-
 # Service deployment toggles (used by deploy-services.yaml)
 prometheus_enabled: true
 blocky_enabled: true
