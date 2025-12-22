@@ -35,16 +35,27 @@ Edit `inventories/production.yaml` with your actual:
 - SSH credentials
 - K3s token (generate with `openssl rand -hex 32`)
 
-### 3. (Optional) Set Up Ansible Vault for Secrets
+### 3. Set Up Ansible Vault for Secrets
+
+Create a vault password file and encrypt sensitive variables:
 
 ```bash
 # Create vault password file
 echo 'your-vault-password' > .vault_pass
 chmod 600 .vault_pass
 
-# Encrypt sensitive variables
-ansible-vault encrypt_string 'your-k3s-token' --name 'k3s_token'
+# Create vault file for sensitive variables
+ansible-vault create inventories/group_vars/all/vault.yaml --vault-password-file .vault_pass
 ```
+
+In the editor, add the following key-value pairs:
+
+```yaml
+vault_become_password: your_sudo_password
+vault_k3s_token: <run 'openssl rand -hex 32' and use the generated token here>
+```
+
+Save and exit the editor.
 
 ### 4. Deploy the Cluster
 
