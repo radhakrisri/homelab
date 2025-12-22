@@ -24,102 +24,20 @@
     kind: Namespace
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+  delegate_to: localhost
 
 - name: Add Authentik Helm repository
   kubernetes.core.helm_repository:
     name: authentik
     repo_url: https://charts.goauthentik.io
     state: present
+  delegate_to: localhost
 
 - name: Deploy Authentik
-  kubernetes.core.helm:
-    name: "{{ authentik_release_name }}"
-    chart_ref: "{{ authentik_chart }}"
-    chart_version: "{{ authentik_chart_version if authentik_chart_version != 'latest' else omit }}"
-    release_namespace: "{{ authentik_namespace }}"
-    create_namespace: true
-    kubeconfig: "{{ kubeconfig_path }}"
-    values:
-      authentik:
-        secret_key: "{{ authentik_secret_key }}"
-        error_reporting:
-          enabled: false
-        postgresql:
-          password: "{{ authentik_postgresql_password }}"
-        email:
-          host: "{{ authentik_email_host if authentik_email_enabled else '' }}"
-          port: "{{ authentik_email_port if authentik_email_enabled else 587 }}"
-          use_tls: "{{ authentik_email_use_tls }}"
-          from: "{{ authentik_email_from if authentik_email_enabled else '' }}"
-      
-      server:
-        replicas: "{{ authentik_server_replicas }}"
-        resources:
-          requests:
-            cpu: 100m
-            memory: 512Mi
-          limits:
-            cpu: 500m
-            memory: 1Gi
-        
-        service:
-          type: "{{ authentik_service_type }}"
-          port: "{{ authentik_service_port }}"
-        
-        ingress:
-          enabled: "{{ authentik_ingress_enabled }}"
-          hosts:
-            - host: "{{ authentik_ingress_host }}"
-              paths:
-                - path: /
-                  pathType: Prefix
-      
-      worker:
-        replicas: "{{ authentik_worker_replicas }}"
-        resources:
-          requests:
-            cpu: 100m
-            memory: 512Mi
-          limits:
-            cpu: 500m
-            memory: 1Gi
-      
-      postgresql:
-        enabled: "{{ authentik_postgresql_enabled }}"
-        auth:
-          username: "{{ authentik_postgresql_user }}"
-          password: "{{ authentik_postgresql_password }}"
-          database: "{{ authentik_postgresql_database }}"
-        primary:
-          persistence:
-            enabled: true
-            storageClass: "{{ authentik_storage_class }}"
-            size: "{{ authentik_postgresql_storage_size }}"
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-      
-      redis:
-        enabled: "{{ authentik_redis_enabled }}"
-        architecture: standalone
-        auth:
-          enabled: false
-        master:
-          persistence:
-            enabled: true
-            storageClass: "{{ authentik_storage_class }}"
-            size: "{{ authentik_redis_storage_size }}"
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
+  ansible.builtin.command:
+    cmd: helm upgrade --install {{ authentik_release_name }} {{ authentik_chart }} --namespace {{ authentik_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --set authentik.secret_key={{ authentik_secret_key }} --set postgresql.postgresqlPassword={{ authentik_postgresql_password }} --set postgresql.enabled=true --set authentik.env.POSTGRES_PASSWORD={{ authentik_postgresql_password }}
+    creates: /tmp/authentik-installed
+  delegate_to: localhost
   register: authentik_deploy_result
 
 - name: Create PVC for Authentik media
@@ -139,6 +57,7 @@
         resources:
           requests:
             storage: "{{ authentik_storage_size }}"
+  delegate_to: localhost
 
 - name: Wait for Authentik server pods to be ready
   kubernetes.core.k8s_info:
@@ -152,6 +71,7 @@
   until: authentik_server_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
+  delegate_to: localhost
 
 - name: Wait for PostgreSQL to be ready
   kubernetes.core.k8s_info:
@@ -165,6 +85,7 @@
   retries: 30
   delay: 10
   when: authentik_postgresql_enabled
+  delegate_to: localhost
 
 - name: Display Authentik access information
   ansible.builtin.debug:

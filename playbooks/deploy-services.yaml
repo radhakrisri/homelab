@@ -17,19 +17,65 @@
   hosts: k3s_servers[0]
   gather_facts: true
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
   tasks:
     - name: Verify kubeconfig exists
       ansible.builtin.stat:
         path: "{{ kubeconfig_path }}"
       register: kubeconfig_file
-      delegate_to: localhost
-      become: false
 
     - name: Fail if kubeconfig not found
       ansible.builtin.fail:
         msg: "Kubeconfig not found at {{ kubeconfig_path }}. Please deploy the K3s cluster first using: ansible-playbook -i inventories/your_inventory.yaml playbooks/site.yaml"
       when: not kubeconfig_file.stat.exists
+
+    - name: Check if Helm is installed
+      ansible.builtin.command: helm version --short
+      register: helm_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install Helm if not present
+      when: helm_check.rc != 0
+      block:
+        - name: Determine system architecture
+          ansible.builtin.set_fact:
+            helm_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+
+        - name: Download Helm installer
+          ansible.builtin.get_url:
+            url: "https://get.helm.sh/helm-v3.15.4-linux-{{ helm_arch }}.tar.gz"
+            dest: /tmp/helm.tar.gz
+          become: true
+
+        - name: Extract Helm
+          ansible.builtin.unarchive:
+            src: /tmp/helm.tar.gz
+            dest: /tmp
+            remote_src: true
+          become: true
+
+        - name: Install Helm binary
+          ansible.builtin.copy:
+            src: "/tmp/linux-{{ helm_arch }}/helm"
+            dest: /usr/local/bin/helm
+            mode: "0755"
+            remote_src: true
+          become: true
+
+        - name: Clean up Helm installation files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/helm.tar.gz
+            - "/tmp/linux-{{ helm_arch }}"
+          become: true
+
+    - name: Verify Helm installation
+      ansible.builtin.command: helm version --short
+      register: helm_verify
+      changed_when: false
 
     - name: Display deployment plan
       ansible.builtin.debug:
@@ -45,7 +91,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
   tags:
     - services
     - monitoring
@@ -61,7 +107,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
   tags:
     - services
     - dns
@@ -76,7 +122,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
   tags:
     - services
     - secrets
@@ -91,7 +137,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
   tags:
     - services
     - sso
@@ -106,7 +152,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
   tags:
     - services
     - traefik

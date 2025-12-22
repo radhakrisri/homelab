@@ -10,6 +10,7 @@
     kubeconfig: "{{ kubeconfig_path }}"
   register: traefik_deployment
   failed_when: false
+  delegate_to: localhost
 
 - name: Verify Traefik is installed
   ansible.builtin.assert:
@@ -40,6 +41,7 @@
             protocol: TCP
         selector:
           app.kubernetes.io/name: traefik
+  delegate_to: localhost
 
 - name: Create Traefik Dashboard IngressRoute (if ingress enabled)
   kubernetes.core.k8s:
@@ -61,6 +63,7 @@
               - name: api@internal
                 kind: TraefikService
   when: traefik_dashboard_ingress_enabled
+  delegate_to: localhost
 
 - name: Wait for Traefik pods to be ready
   kubernetes.core.k8s_info:
@@ -73,6 +76,7 @@
   until: traefik_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
+  delegate_to: localhost
 
 - name: Display Traefik Dashboard access information
   ansible.builtin.debug:

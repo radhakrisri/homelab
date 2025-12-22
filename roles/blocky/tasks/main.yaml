@@ -8,12 +8,14 @@
     kind: Namespace
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+  delegate_to: localhost
 
 - name: Create Blocky ConfigMap
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
     definition: "{{ lookup('template', 'configmap.yaml.j2') }}"
+  delegate_to: localhost
 
 - name: Deploy Blocky Deployment
   kubernetes.core.k8s:
@@ -77,6 +79,7 @@
               - name: config
                 configMap:
                   name: "{{ blocky_release_name }}-config"
+  delegate_to: localhost
 
 - name: Deploy Blocky Service
   kubernetes.core.k8s:
@@ -107,6 +110,7 @@
             protocol: TCP
         selector:
           app: blocky
+  delegate_to: localhost
 
 - name: Wait for Blocky pods to be ready
   kubernetes.core.k8s_info:
@@ -119,6 +123,7 @@
   until: blocky_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
+  delegate_to: localhost
 
 - name: Get Blocky Service details
   kubernetes.core.k8s_info:
@@ -127,6 +132,7 @@
     namespace: "{{ blocky_namespace }}"
     kubeconfig: "{{ kubeconfig_path }}"
   register: blocky_service
+  delegate_to: localhost
 
 - name: Display Blocky access information
   ansible.builtin.debug:

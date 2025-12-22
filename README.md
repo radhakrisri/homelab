@@ -24,7 +24,13 @@ Ansible automation for deploying a highly available K3s Kubernetes cluster.
 ansible-galaxy install -r requirements.yaml
 ```
 
-### 2. Prepare Your Inventory
+### 2. Install Python Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Prepare Your Inventory
 
 ```bash
 cp inventories/sample_inventory.yaml inventories/production.yaml
@@ -53,6 +59,9 @@ In the editor, add the following key-value pairs:
 ```yaml
 vault_become_password: your_sudo_password
 vault_k3s_token: <run 'openssl rand -hex 32' and use the generated token here>
+vault_grafana_admin_password: <your_strong_grafana_admin_password>
+vault_authentik_secret_key: <run 'openssl rand -hex 32' and use the output here>
+vault_authentik_postgresql_password: <your_strong_authentik_db_password>
 ```
 
 Save and exit the editor.
@@ -84,6 +93,7 @@ kubectl get nodes
 .
 ├── ansible.cfg              # Ansible configuration
 ├── requirements.yaml        # Ansible Galaxy dependencies
+├── requirements.txt         # Python package dependencies
 ├── inventories/
 │   └── sample_inventory.yaml  # Sample inventory (copy and customize)
 ├── group_vars/
