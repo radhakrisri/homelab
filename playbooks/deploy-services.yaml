@@ -29,6 +29,34 @@
         msg: "Kubeconfig not found at {{ kubeconfig_path }}. Please deploy the K3s cluster first using: ansible-playbook -i inventories/your_inventory.yaml playbooks/site.yaml"
       when: not kubeconfig_file.stat.exists
 
+    - name: Fetch kubeconfig from remote host
+      ansible.builtin.fetch:
+        src: "{{ kubeconfig_path }}"
+        dest: "/tmp/k3s-kubeconfig-raw-{{ inventory_hostname }}"
+        flat: true
+      become: false
+
+    - name: Fix kubeconfig server URL
+      ansible.builtin.slurp:
+        src: "/tmp/k3s-kubeconfig-raw-{{ inventory_hostname }}"
+      register: kubeconfig_raw
+      delegate_to: localhost
+      become: false
+
+    - name: Save corrected kubeconfig
+      ansible.builtin.copy:
+        content: "{{ kubeconfig_raw.content | b64decode | replace('127.0.0.1', ansible_host) }}"
+        dest: "/tmp/k3s-kubeconfig-{{ inventory_hostname }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+
+    - name: Set local kubeconfig path
+      ansible.builtin.set_fact:
+        local_kubeconfig_path: "/tmp/k3s-kubeconfig-{{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+
     - name: Check if Helm is installed
       ansible.builtin.command: helm version --short
       register: helm_check
@@ -91,7 +119,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
   tags:
     - services
     - monitoring
@@ -107,7 +135,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
   tags:
     - services
     - dns
@@ -122,7 +150,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
   tags:
     - services
     - secrets
@@ -137,7 +165,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
   tags:
     - services
     - sso
@@ -152,7 +180,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
   tags:
     - services
     - traefik
@@ -166,6 +194,8 @@
 - name: Display service access information
   hosts: k3s_servers[0]
   gather_facts: false
+  vars:
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
   tags:
     - services
   tasks:
