@@ -30,7 +30,9 @@
     kind: Namespace
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Add HashiCorp Helm repository
   kubernetes.core.helm_repository:
@@ -40,7 +42,7 @@
   delegate_to: localhost
 
 - name: Uninstall existing Vault if present
-  ansible.builtin.command:
+  ansible.builtin.shell:
     cmd: helm uninstall vault --namespace homelab --kubeconfig {{ kubeconfig_path }} || true
   delegate_to: localhost
   ignore_errors: true
@@ -52,6 +54,11 @@
   delegate_to: localhost
   register: vault_deploy_result
 
+- name: Set default vault_pods for check mode
+  set_fact:
+    vault_pods: {"resources": []}
+  when: ansible_check_mode
+
 - name: Wait for Vault pods to be ready
   kubernetes.core.k8s_info:
     kind: Pod
@@ -59,11 +66,13 @@
     label_selectors:
       - "app.kubernetes.io/name=vault"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: vault_pods
   until: vault_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Display Vault access information
   ansible.builtin.debug:

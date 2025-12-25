@@ -24,7 +24,9 @@
     kind: Namespace
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Add Authentik Helm repository
   kubernetes.core.helm_repository:
@@ -35,7 +37,7 @@
 
 - name: Deploy Authentik
   ansible.builtin.command:
-    cmd: helm upgrade --install {{ authentik_release_name }} {{ authentik_chart }} --namespace {{ authentik_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --set authentik.secret_key={{ authentik_secret_key }} --set postgresql.postgresqlPassword={{ authentik_postgresql_password }} --set postgresql.enabled=true --set authentik.env.POSTGRES_PASSWORD={{ authentik_postgresql_password }}
+    cmd: helm upgrade --install {{ authentik_release_name }} {{ authentik_chart }} --namespace {{ authentik_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --set authentik.secret_key={{ authentik_secret_key }} --set postgresql.postgresqlUsername=authentik --set postgresql.postgresqlPassword={{ authentik_postgresql_password }} --set postgresql.postgresqlDatabase=authentik --set postgresql.enabled=true --set authentik.postgresql.host=authentik-postgresql --set authentik.postgresql.user=authentik --set authentik.postgresql.password={{ authentik_postgresql_password }} --set authentik.postgresql.database=authentik
     creates: /tmp/authentik-installed
   delegate_to: localhost
   register: authentik_deploy_result
@@ -44,6 +46,7 @@
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
     definition:
       apiVersion: v1
       kind: PersistentVolumeClaim
@@ -58,6 +61,12 @@
           requests:
             storage: "{{ authentik_storage_size }}"
   delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Set default authentik_server_pods for check mode
+  set_fact:
+    authentik_server_pods: {"resources": []}
+  when: ansible_check_mode
 
 - name: Wait for Authentik server pods to be ready
   kubernetes.core.k8s_info:
@@ -67,11 +76,18 @@
       - "app.kubernetes.io/name=authentik"
       - "app.kubernetes.io/component=server"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: authentik_server_pods
   until: authentik_server_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
   delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Set default postgresql_pods for check mode
+  set_fact:
+    postgresql_pods: {"resources": []}
+  when: ansible_check_mode
 
 - name: Wait for PostgreSQL to be ready
   kubernetes.core.k8s_info:
@@ -80,11 +96,12 @@
     label_selectors:
       - "app.kubernetes.io/name=postgresql"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: postgresql_pods
   until: postgresql_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
-  when: authentik_postgresql_enabled
+  when: authentik_postgresql_enabled and not ansible_check_mode
   delegate_to: localhost
 
 - name: Display Authentik access information

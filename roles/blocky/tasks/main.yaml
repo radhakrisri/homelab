@@ -1,6 +1,41 @@
 ---
 # Blocky DNS and Ad Blocker Deployment Tasks
 
+- name: Pull Blocky image on controller
+  command: ctr -n k8s.io images pull ghcr.io/0xerr0r/blocky:v0.28.2
+  delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
+
+- name: Export Blocky image to tar on controller
+  command: ctr -n k8s.io images export /tmp/blocky-v0.28.2.tar ghcr.io/0xerr0r/blocky:v0.28.2
+  delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
+
+- name: Copy Blocky image to cluster nodes
+  copy:
+    src: "/tmp/blocky-v0.28.2.tar"
+    dest: "/tmp/blocky-v0.28.2.tar"
+  when: not ansible_check_mode
+
+- name: Load Blocky image on cluster nodes
+  command: ctr -n k8s.io images import /tmp/blocky-v0.28.2.tar
+  when: not ansible_check_mode
+
+- name: Clean up image tar file on controller
+  file:
+    path: "/tmp/blocky-v0.28.2.tar"
+    state: absent
+  delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
+
+- name: Clean up image tar file on nodes
+  file:
+    path: "/tmp/blocky-v0.28.2.tar"
+    state: absent
+
 - name: Create namespace for Blocky
   kubernetes.core.k8s:
     name: "{{ blocky_namespace }}"
@@ -8,19 +43,26 @@
     kind: Namespace
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
 
 - name: Create Blocky ConfigMap
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
     definition: "{{ lookup('template', 'configmap.yaml.j2') }}"
+    validate_certs: no
   delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
 
 - name: Deploy Blocky Deployment
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
     definition:
       apiVersion: apps/v1
       kind: Deployment
@@ -41,7 +83,7 @@
           spec:
             containers:
               - name: blocky
-                image: ghcr.io/0xerr0r/blocky:v0.23
+                image: ghcr.io/0xerr0r/blocky:v0.28.2
                 ports:
                   - name: dns-udp
                     containerPort: "{{ blocky_service_port }}"
@@ -80,11 +122,14 @@
                 configMap:
                   name: "{{ blocky_release_name }}-config"
   delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
 
 - name: Deploy Blocky Service
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
     definition:
       apiVersion: v1
       kind: Service
@@ -111,6 +156,13 @@
         selector:
           app: blocky
   delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
+
+- name: Set default blocky_pods for check mode
+  set_fact:
+    blocky_pods: {"resources": []}
+  when: ansible_check_mode
 
 - name: Wait for Blocky pods to be ready
   kubernetes.core.k8s_info:
@@ -119,11 +171,14 @@
     label_selectors:
       - "app=blocky"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: blocky_pods
   until: blocky_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
   delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
 
 - name: Get Blocky Service details
   kubernetes.core.k8s_info:
@@ -131,8 +186,11 @@
     name: "{{ blocky_release_name }}"
     namespace: "{{ blocky_namespace }}"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: blocky_service
   delegate_to: localhost
+  run_once: true
+  when: not ansible_check_mode
 
 - name: Display Blocky access information
   ansible.builtin.debug:
@@ -144,3 +202,4 @@
       - "API Port: {{ blocky_api_port }}"
       - "Configure your devices to use this DNS server"
       - "To access the API, run: kubectl port-forward -n {{ blocky_namespace }} svc/{{ blocky_release_name }} {{ blocky_api_port }}:{{ blocky_api_port }}"
+  run_once: true

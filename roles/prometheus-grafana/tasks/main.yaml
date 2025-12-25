@@ -18,7 +18,9 @@
     kind: Namespace
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Add Prometheus Community Helm repository
   kubernetes.core.helm_repository:
@@ -34,9 +36,15 @@
     state: present
   delegate_to: localhost
 
+- name: Generate Prometheus values file
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: /tmp/prometheus-values.yaml
+  delegate_to: localhost
+
 - name: Deploy kube-prometheus-stack
   ansible.builtin.command:
-    cmd: helm upgrade --install {{ prometheus_release_name }} {{ prometheus_chart }} --namespace {{ prometheus_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --set prometheus.prometheusSpec.retention={{ prometheus_retention }} --set prometheus.prometheusSpec.replicas={{ prometheus_replicas }} --set grafana.adminPassword={{ grafana_admin_password }}
+    cmd: helm upgrade --install {{ prometheus_release_name }} {{ prometheus_chart }} --namespace {{ prometheus_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --values /tmp/prometheus-values.yaml
     creates: /tmp/prometheus-installed
   delegate_to: localhost
   register: prometheus_deploy_result
@@ -48,11 +56,13 @@
     label_selectors:
       - "app.kubernetes.io/name=prometheus"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: prometheus_pods
   until: prometheus_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Wait for Grafana pods to be ready
   kubernetes.core.k8s_info:
@@ -61,11 +71,13 @@
     label_selectors:
       - "app.kubernetes.io/name=grafana"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: grafana_pods
   until: grafana_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Display Grafana access information
   ansible.builtin.debug:

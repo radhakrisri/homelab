@@ -8,9 +8,16 @@
     name: traefik
     namespace: "{{ traefik_namespace }}"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: traefik_deployment
   failed_when: false
   delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Set default traefik_deployment for check mode
+  set_fact:
+    traefik_deployment: {"resources": [{"metadata": {"name": "traefik"}}]}
+  when: ansible_check_mode
 
 - name: Verify Traefik is installed
   ansible.builtin.assert:
@@ -23,6 +30,7 @@
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
     definition:
       apiVersion: v1
       kind: Service
@@ -42,11 +50,13 @@
         selector:
           app.kubernetes.io/name: traefik
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Create Traefik Dashboard IngressRoute (if ingress enabled)
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
     definition:
       apiVersion: traefik.containo.us/v1alpha1
       kind: IngressRoute
@@ -62,8 +72,13 @@
             services:
               - name: api@internal
                 kind: TraefikService
-  when: traefik_dashboard_ingress_enabled
+  when: traefik_dashboard_ingress_enabled and not ansible_check_mode
   delegate_to: localhost
+
+- name: Set default traefik_pods for check mode
+  set_fact:
+    traefik_pods: {"resources": []}
+  when: ansible_check_mode
 
 - name: Wait for Traefik pods to be ready
   kubernetes.core.k8s_info:
@@ -72,11 +87,13 @@
     label_selectors:
       - "app.kubernetes.io/name=traefik"
     kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
   register: traefik_pods
   until: traefik_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
   delegate_to: localhost
+  when: not ansible_check_mode
 
 - name: Display Traefik Dashboard access information
   ansible.builtin.debug:

@@ -6,7 +6,7 @@ This document provides detailed information about the homelab services that can 
 
 The following services are available for deployment:
 
-1. **Prometheus & Grafana** - Monitoring and metrics visualization
+1. **Prometheus & Grafana** - Comprehensive monitoring and metrics visualization for all infrastructure
 2. **Blocky** - DNS server with ad-blocking
 3. **Vault** - Secret management
 4. **Authentik** - SSO/SAML/OAuth2 provider
@@ -16,21 +16,41 @@ The following services are available for deployment:
 
 All services are deployed in the `homelab` namespace (except Traefik which is in `kube-system`). Services use the `local-path` storage class by default, which is provided by K3s.
 
+The monitoring stack provides enterprise-grade observability covering:
+- **System Metrics**: CPU, memory, disk, network from all inventory nodes
+- **Kubernetes Metrics**: Cluster health, pod performance, resource utilization
+- **K3s Metrics**: Control plane component monitoring and performance
+- **Service Metrics**: Application-specific monitoring and alerting
+
 ```
 ┌─────────────────────────────────────────────────┐
 │              K3s Cluster                        │
 ├─────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────┐   │
+│  │     Monitoring Stack (Prometheus)      │   │
+│  │  ┌──────────┐  ┌──────────┐            │   │
+│  │  │Prometheus│  │  Grafana │            │   │
+│  │  │ Metrics  │  │ Dashboards│            │   │
+│  │  └──────────┘  └──────────┘            │   │
+│  │  ┌──────────┐  ┌──────────┐            │   │
+│  │  │Node      │  │Kube State│            │   │
+│  │  │Exporter  │  │ Metrics  │            │   │
+│  │  └──────────┘  └──────────┘            │   │
+│  └─────────────────────────────────────────┘   │
 │                                                 │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐     │
-│  │Prometheus│  │  Blocky  │  │  Vault   │     │
-│  │ Grafana  │  │   DNS    │  │ Secrets  │     │
+│  │  Blocky  │  │  Vault   │  │Authentik │     │
+│  │   DNS    │  │ Secrets  │  │   SSO    │     │
 │  └──────────┘  └──────────┘  └──────────┘     │
 │                                                 │
-│  ┌──────────┐  ┌──────────┐                    │
-│  │Authentik │  │ Traefik  │                    │
-│  │   SSO    │  │Dashboard │                    │
-│  └──────────┘  └──────────┘                    │
+│  ┌──────────┐                                 │
+│  │ Traefik  │                                 │
+│  │Dashboard │                                 │
+│  └──────────┘                                 │
 │                                                 │
+│  📊 System Metrics from ALL Inventory Nodes    │
+│  🔍 K3s Control Plane Monitoring               │
+│  📈 Service Performance Metrics                │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -38,46 +58,129 @@ All services are deployed in the `homelab` namespace (except Traefik which is in
 
 ### 1. Prometheus & Grafana
 
-**Purpose**: Complete monitoring stack for all cluster resources and services.
+**Purpose**: Enterprise-grade monitoring stack providing comprehensive metrics collection, visualization, and alerting for your entire homelab infrastructure.
 
 **Components**:
-- Prometheus: Metrics collection and storage
-- Grafana: Metrics visualization with dashboards
-- AlertManager: Alert routing and management
-- Node Exporter: Node-level metrics
-- Kube State Metrics: Kubernetes resource metrics
+- **Prometheus**: Metrics collection and time-series database
+- **Grafana**: Advanced visualization with pre-configured dashboards
+- **AlertManager**: Alert routing and notification management
+- **Node Exporter**: System-level metrics from all inventory nodes
+- **Kube State Metrics**: Kubernetes resource and object metrics
+- **Kube-Prometheus-Stack**: Complete Kubernetes monitoring solution
+
+**Monitored Resources**:
+
+**System Metrics (All Inventory Nodes)**:
+- CPU usage, load averages, and utilization
+- Memory (RAM) usage and statistics
+- Disk space, I/O operations, and filesystem metrics
+- Network interface statistics and throughput
+- System load averages and process information
+- Hardware monitoring (temperature, sensors)
+- Systemd service status and performance
+
+**Kubernetes Metrics**:
+- Pod resource usage (CPU, memory, network)
+- Node resource utilization and health
+- Cluster-wide resource allocation
+- Kubernetes API server performance
+- etcd database metrics
+- CoreDNS resolution statistics
+- Ingress controller metrics
+
+**K3s-Specific Metrics**:
+- K3s control plane component health
+- API server request rates and latency
+- Scheduler performance metrics
+- Controller manager operations
+- etcd cluster status and performance
 
 **Default Configuration**:
 ```yaml
 prometheus_namespace: homelab
 prometheus_storage_size: 10Gi
 prometheus_retention: 30d
+prometheus_replicas: 1
 grafana_admin_user: admin
-grafana_admin_password: admin  # Change this!
+grafana_admin_password: admin  # Set via Ansible Vault!
 grafana_storage_size: 5Gi
+node_exporter_enabled: true
 ```
+
+**Pre-configured Grafana Dashboards**:
+- **Node Exporter Full** (ID: 1860) - Comprehensive system monitoring
+- **Kubernetes Cluster Monitoring** (ID: 3119) - K8s cluster overview
+- **System Monitoring** - General system metrics dashboard
+- **K3s Monitoring** (ID: 13646) - K3s-specific control plane metrics
 
 **Access**:
 ```bash
+# Grafana (Visualization)
 kubectl port-forward -n homelab svc/prometheus-grafana 3000:80
 # Open http://localhost:3000
+# User: admin, Password: (from Ansible Vault)
+
+# Prometheus (Raw Metrics)
+kubectl port-forward -n homelab svc/prometheus-kube-prometheus-prometheus 9090:9090
+# Open http://localhost:9090
+
+# Node Exporter (Direct metrics from any node)
+curl http://<node-ip>:9100/metrics
 ```
 
 **Key Features**:
-- Pre-configured dashboards for Kubernetes monitoring
-- ServiceMonitor support for automatic service discovery
-- Persistent storage for metrics and dashboards
-- AlertManager for notification routing
+- **Comprehensive Node Monitoring**: All inventory nodes monitored for critical system metrics
+- **K3s Integration**: Specialized monitoring for K3s control plane components
+- **Automated Service Discovery**: Prometheus automatically discovers and monitors services
+- **Pre-built Dashboards**: Ready-to-use Grafana dashboards for immediate insights
+- **Alerting**: Configurable alerts for system and service issues
+- **Persistent Storage**: Metrics retained for 30 days by default
+- **Scalable Architecture**: Easily add more nodes and services to monitoring
+
+**Monitoring Coverage**:
+- **5 Inventory Nodes**: All servers and agents monitored for system metrics
+- **Kubernetes Cluster**: Complete cluster health and performance monitoring
+- **K3s Control Plane**: API server, scheduler, controller manager, etcd
+- **Network Services**: DNS, ingress, load balancing metrics
+- **Storage**: Persistent volume usage and performance
 
 **Customization**:
 Edit `roles/prometheus-grafana/defaults/main.yaml` or override in inventory:
 ```yaml
-prometheus_replicas: 2  # For HA
+# High availability setup
+prometheus_replicas: 2
+alertmanager_replicas: 2
+
+# External access
 prometheus_ingress_enabled: true
-prometheus_ingress_host: prometheus.yourdomain.com
+prometheus_ingress_host: prometheus.homelab.local
 grafana_ingress_enabled: true
-grafana_ingress_host: grafana.yourdomain.com
+grafana_ingress_host: grafana.homelab.local
+
+# Extended retention
+prometheus_retention: 90d
+prometheus_storage_size: 50Gi
+
+# Additional scrape targets
+additional_scrape_configs:
+  - job_name: 'external-service'
+    static_configs:
+      - targets: ['external-service.homelab.local:9090']
 ```
+
+**Alerting Configuration**:
+Default alerts include:
+- Node down detection
+- High CPU/memory usage
+- Disk space warnings
+- Kubernetes pod crashes
+- K3s component failures
+
+**Best Practices**:
+1. **Regular Dashboard Review**: Check Grafana dashboards daily for system health
+2. **Alert Configuration**: Customize alerts based on your homelab requirements
+3. **Retention Planning**: Adjust retention based on storage capacity and monitoring needs
+4. **Backup**: Include Prometheus data in your backup strategy for historical metrics
 
 ### 2. Blocky
 

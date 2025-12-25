@@ -1,0 +1,31 @@
+[Unit]
+Description=Node Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ node_exporter_user }}
+Group={{ node_exporter_group }}
+Type=simple
+ExecStart={{ node_exporter_install_dir }}/node_exporter \
+  --web.listen-address=:{{ node_exporter_port }} \
+  --collector.cpu \
+  --collector.diskstats \
+  --collector.filesystem \
+  --collector.loadavg \
+  --collector.meminfo \
+  --collector.netdev \
+  --collector.netstat \
+  --collector.stat \
+  --collector.time \
+  --collector.vmstat \
+  --collector.systemd \
+  --collector.processes \
+  --collector.interrupts \
+  --collector.hwmon
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -62,6 +62,8 @@
       register: helm_check
       ignore_errors: true
       changed_when: false
+      delegate_to: localhost
+      become: false
 
     - name: Install Helm if not present
       when: helm_check.rc != 0
@@ -69,19 +71,23 @@
         - name: Determine system architecture
           ansible.builtin.set_fact:
             helm_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+          delegate_to: localhost
+          become: false
 
         - name: Download Helm installer
           ansible.builtin.get_url:
-            url: "https://get.helm.sh/helm-v3.15.4-linux-{{ helm_arch }}.tar.gz"
-            dest: /tmp/helm.tar.gz
-          become: true
+            url: "https://get.helm.sh/helm-v3.14.4-linux-{{ helm_arch }}.tar.gz"
+            dest: "/tmp/helm.tar.gz"
+          delegate_to: localhost
+          become: false
 
         - name: Extract Helm
           ansible.builtin.unarchive:
-            src: /tmp/helm.tar.gz
-            dest: /tmp
+            src: "/tmp/helm.tar.gz"
+            dest: "/tmp"
             remote_src: true
-          become: true
+          delegate_to: localhost
+          become: false
 
         - name: Install Helm binary
           ansible.builtin.copy:
@@ -89,21 +95,25 @@
             dest: /usr/local/bin/helm
             mode: "0755"
             remote_src: true
-          become: true
+          delegate_to: localhost
+          become: false
 
         - name: Clean up Helm installation files
           ansible.builtin.file:
             path: "{{ item }}"
             state: absent
           loop:
-            - /tmp/helm.tar.gz
+            - "/tmp/helm.tar.gz"
             - "/tmp/linux-{{ helm_arch }}"
-          become: true
+          delegate_to: localhost
+          become: false
 
     - name: Verify Helm installation
       ansible.builtin.command: helm version --short
       register: helm_verify
       changed_when: false
+      delegate_to: localhost
+      become: false
 
     - name: Display deployment plan
       ansible.builtin.debug:
@@ -119,7 +129,7 @@
   hosts: k3s_servers[0]
   gather_facts: false
   vars:
-    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
+    kubeconfig_path: "/home/rks/code/homelab/kubeconfig-fresh"
   tags:
     - services
     - monitoring
@@ -131,8 +141,21 @@
         name: prometheus-grafana
       when: prometheus_enabled | default(true)
 
+- name: Deploy Node Exporter to all inventory nodes
+  hosts: all
+  gather_facts: false
+  tags:
+    - services
+    - monitoring
+    - node-exporter
+  tasks:
+    - name: Install Node Exporter on all nodes
+      ansible.builtin.include_role:
+        name: node-exporter
+      when: prometheus_enabled | default(true)
+
 - name: Deploy Blocky DNS and Ad Blocker
-  hosts: k3s_servers[0]
+  hosts: k3s_servers + k3s_agents
   gather_facts: false
   vars:
     kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
