@@ -1,0 +1,253 @@
+---
+# Uninstall K3s Services
+#
+# Usage:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/uninstall-services.yaml
+#
+# Or uninstall specific services with tags:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/uninstall-services.yaml --tags prometheus
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/uninstall-services.yaml --tags blocky
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/uninstall-services.yaml --tags vault
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/uninstall-services.yaml --tags authentik
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/uninstall-services.yaml --tags traefik-dashboard
+#
+# WARNING: This will remove all services and their data!
+
+- name: Confirm service removal
+  hosts: localhost
+  gather_facts: false
+  vars_prompt:
+    - name: confirm_uninstall
+      prompt: "Are you sure you want to uninstall the services? This will delete all data! (yes/no)"
+      private: false
+  tasks:
+    - name: Abort if not confirmed
+      ansible.builtin.fail:
+        msg: "Uninstall cancelled by user"
+      when: confirm_uninstall != "yes"
+
+- name: Uninstall K3s Services
+  hosts: k3s_servers[0]
+  gather_facts: false
+  vars:
+    kubeconfig_path: "{{ playbook_dir }}/../kubeconfig"
+    prometheus_namespace: "{{ prometheus_namespace | default('homelab') }}"
+    blocky_namespace: "{{ blocky_namespace | default('homelab') }}"
+    vault_namespace: "{{ vault_namespace | default('homelab') }}"
+    authentik_namespace: "{{ authentik_namespace | default('homelab') }}"
+    traefik_namespace: "kube-system"
+  tasks:
+    - name: Verify kubeconfig exists
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig_file
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if kubeconfig not found
+      ansible.builtin.fail:
+        msg: "Kubeconfig not found at {{ kubeconfig_path }}. Cannot uninstall services."
+      when: not kubeconfig_file.stat.exists
+
+    - name: Uninstall Prometheus & Grafana
+      kubernetes.core.helm:
+        name: "{{ prometheus_release_name | default('prometheus') }}"
+        release_namespace: "{{ prometheus_namespace }}"
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - monitoring
+        - prometheus
+        - grafana
+      ignore_errors: true
+
+    - name: Delete Prometheus namespace
+      kubernetes.core.k8s:
+        name: "{{ prometheus_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - monitoring
+        - prometheus
+        - grafana
+      ignore_errors: true
+      when: prometheus_namespace != 'homelab'
+
+    - name: Uninstall Blocky
+      kubernetes.core.k8s:
+        name: "{{ blocky_release_name | default('blocky') }}"
+        namespace: "{{ blocky_namespace }}"
+        kind: Deployment
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - dns
+        - blocky
+      ignore_errors: true
+
+    - name: Delete Blocky Service
+      kubernetes.core.k8s:
+        name: "{{ blocky_release_name | default('blocky') }}"
+        namespace: "{{ blocky_namespace }}"
+        kind: Service
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - dns
+        - blocky
+      ignore_errors: true
+
+    - name: Delete Blocky ConfigMap
+      kubernetes.core.k8s:
+        name: "{{ blocky_release_name | default('blocky') }}-config"
+        namespace: "{{ blocky_namespace }}"
+        kind: ConfigMap
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - dns
+        - blocky
+      ignore_errors: true
+
+    - name: Uninstall Vault
+      kubernetes.core.helm:
+        name: "{{ vault_release_name | default('vault') }}"
+        release_namespace: "{{ vault_namespace }}"
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - secrets
+        - vault
+      ignore_errors: true
+
+    - name: Delete Vault namespace
+      kubernetes.core.k8s:
+        name: "{{ vault_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - secrets
+        - vault
+      ignore_errors: true
+      when: vault_namespace != 'homelab'
+
+    - name: Uninstall Authentik
+      kubernetes.core.helm:
+        name: "{{ authentik_release_name | default('authentik') }}"
+        release_namespace: "{{ authentik_namespace }}"
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - sso
+        - authentik
+      ignore_errors: true
+
+    - name: Delete Authentik PVC
+      kubernetes.core.k8s:
+        name: "{{ authentik_release_name | default('authentik') }}-media"
+        namespace: "{{ authentik_namespace }}"
+        kind: PersistentVolumeClaim
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - sso
+        - authentik
+      ignore_errors: true
+
+    - name: Delete Authentik namespace
+      kubernetes.core.k8s:
+        name: "{{ authentik_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - sso
+        - authentik
+      ignore_errors: true
+      when: authentik_namespace != 'homelab'
+
+    - name: Disable Traefik Dashboard
+      kubernetes.core.k8s:
+        name: traefik-dashboard
+        namespace: "{{ traefik_namespace }}"
+        kind: Service
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - traefik
+        - traefik-dashboard
+      ignore_errors: true
+
+    - name: Delete Traefik Dashboard IngressRoute
+      kubernetes.core.k8s:
+        name: traefik-dashboard
+        namespace: "{{ traefik_namespace }}"
+        kind: IngressRoute
+        api_version: traefik.containo.us/v1alpha1
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - traefik
+        - traefik-dashboard
+      ignore_errors: true
+
+    - name: Delete Traefik ConfigMap
+      kubernetes.core.k8s:
+        name: traefik-config
+        namespace: "{{ traefik_namespace }}"
+        kind: ConfigMap
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+        - traefik
+        - traefik-dashboard
+      ignore_errors: true
+
+    - name: Delete homelab namespace (if empty)
+      kubernetes.core.k8s:
+        name: homelab
+        api_version: v1
+        kind: Namespace
+        state: absent
+        kubeconfig: "{{ kubeconfig_path }}"
+      tags:
+        - services
+      ignore_errors: true
+
+    - name: Display uninstall completion message
+      ansible.builtin.debug:
+        msg:
+          - "==================================================================="
+          - "Service uninstallation completed!"
+          - "==================================================================="
+          - ""
+          - "All selected services have been removed from the cluster."
+          - ""
+          - "Note: PersistentVolumes may need to be manually deleted if they"
+          - "are not automatically removed by the storage provisioner."
+          - ""
+          - "To check for remaining PVs:"
+          - "  kubectl get pv"
+          - ""
+          - "To delete a PV:"
+          - "  kubectl delete pv <pv-name>"
+          - ""
+          - "==================================================================="

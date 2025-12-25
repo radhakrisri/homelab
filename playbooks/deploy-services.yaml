@@ -1,0 +1,259 @@
+---
+# Deploy All K3s Services
+#
+# Usage:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-services.yaml
+#
+# Or deploy specific services with tags:
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-services.yaml --tags prometheus
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-services.yaml --tags blocky
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-services.yaml --tags vault
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-services.yaml --tags authentik
+#   ansible-playbook -i inventories/your_inventory.yaml playbooks/deploy-services.yaml --tags traefik-dashboard
+#
+# This playbook deploys all homelab services on the K3s cluster
+
+- name: Deploy K3s Services
+  hosts: k3s_servers[0]
+  gather_facts: true
+  vars:
+    kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
+  tasks:
+    - name: Verify kubeconfig exists
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig_file
+
+    - name: Fail if kubeconfig not found
+      ansible.builtin.fail:
+        msg: "Kubeconfig not found at {{ kubeconfig_path }}. Please deploy the K3s cluster first using: ansible-playbook -i inventories/your_inventory.yaml playbooks/site.yaml"
+      when: not kubeconfig_file.stat.exists
+
+    - name: Fetch kubeconfig from remote host
+      ansible.builtin.fetch:
+        src: "{{ kubeconfig_path }}"
+        dest: "/tmp/k3s-kubeconfig-raw-{{ inventory_hostname }}"
+        flat: true
+      become: false
+
+    - name: Fix kubeconfig server URL
+      ansible.builtin.slurp:
+        src: "/tmp/k3s-kubeconfig-raw-{{ inventory_hostname }}"
+      register: kubeconfig_raw
+      delegate_to: localhost
+      become: false
+
+    - name: Save corrected kubeconfig
+      ansible.builtin.copy:
+        content: "{{ kubeconfig_raw.content | b64decode | replace('127.0.0.1', ansible_host) }}"
+        dest: "/tmp/k3s-kubeconfig-{{ inventory_hostname }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+
+    - name: Set local kubeconfig path
+      ansible.builtin.set_fact:
+        local_kubeconfig_path: "/tmp/k3s-kubeconfig-{{ inventory_hostname }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Check if Helm is installed
+      ansible.builtin.command: helm version --short
+      register: helm_check
+      ignore_errors: true
+      changed_when: false
+      delegate_to: localhost
+      become: false
+
+    - name: Install Helm if not present
+      when: helm_check.rc != 0
+      block:
+        - name: Determine system architecture
+          ansible.builtin.set_fact:
+            helm_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+          delegate_to: localhost
+          become: false
+
+        - name: Download Helm installer
+          ansible.builtin.get_url:
+            url: "https://get.helm.sh/helm-v3.14.4-linux-{{ helm_arch }}.tar.gz"
+            dest: "/tmp/helm.tar.gz"
+          delegate_to: localhost
+          become: false
+
+        - name: Extract Helm
+          ansible.builtin.unarchive:
+            src: "/tmp/helm.tar.gz"
+            dest: "/tmp"
+            remote_src: true
+          delegate_to: localhost
+          become: false
+
+        - name: Install Helm binary
+          ansible.builtin.copy:
+            src: "/tmp/linux-{{ helm_arch }}/helm"
+            dest: /usr/local/bin/helm
+            mode: "0755"
+            remote_src: true
+          delegate_to: localhost
+          become: false
+
+        - name: Clean up Helm installation files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "/tmp/helm.tar.gz"
+            - "/tmp/linux-{{ helm_arch }}"
+          delegate_to: localhost
+          become: false
+
+    - name: Verify Helm installation
+      ansible.builtin.command: helm version --short
+      register: helm_verify
+      changed_when: false
+      delegate_to: localhost
+      become: false
+
+    - name: Display deployment plan
+      ansible.builtin.debug:
+        msg:
+          - "Deploying homelab services to K3s cluster"
+          - "Prometheus & Grafana: {{ prometheus_enabled | default(true) }}"
+          - "Blocky DNS: {{ blocky_enabled | default(true) }}"
+          - "Vault: {{ vault_enabled | default(true) }}"
+          - "Authentik: {{ authentik_enabled | default(true) }}"
+          - "Traefik Dashboard: {{ traefik_dashboard_enabled | default(true) }}"
+
+- name: Deploy Prometheus & Grafana
+  hosts: k3s_servers[0]
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/home/rks/code/homelab/kubeconfig-fresh"
+  tags:
+    - services
+    - monitoring
+    - prometheus
+    - grafana
+  tasks:
+    - name: Include prometheus-grafana role
+      ansible.builtin.include_role:
+        name: prometheus-grafana
+      when: prometheus_enabled | default(true)
+
+- name: Deploy Node Exporter to all inventory nodes
+  hosts: all
+  gather_facts: false
+  tags:
+    - services
+    - monitoring
+    - node-exporter
+  tasks:
+    - name: Install Node Exporter on all nodes
+      ansible.builtin.include_role:
+        name: node-exporter
+      when: prometheus_enabled | default(true)
+
+- name: Deploy Blocky DNS and Ad Blocker
+  hosts: k3s_servers + k3s_agents
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
+  tags:
+    - services
+    - dns
+    - blocky
+  tasks:
+    - name: Include blocky role
+      ansible.builtin.include_role:
+        name: blocky
+      when: blocky_enabled | default(true)
+
+- name: Deploy Vault Secret Management
+  hosts: k3s_servers[0]
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
+  tags:
+    - services
+    - secrets
+    - vault
+  tasks:
+    - name: Include vault role
+      ansible.builtin.include_role:
+        name: vault
+      when: vault_enabled | default(true)
+
+- name: Deploy Authentik SSO/SAML
+  hosts: k3s_servers[0]
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
+  tags:
+    - services
+    - sso
+    - authentik
+  tasks:
+    - name: Include authentik role
+      ansible.builtin.include_role:
+        name: authentik
+      when: authentik_enabled | default(true)
+
+- name: Enable Traefik Dashboard
+  hosts: k3s_servers[0]
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
+  tags:
+    - services
+    - traefik
+    - traefik-dashboard
+  tasks:
+    - name: Include traefik-dashboard role
+      ansible.builtin.include_role:
+        name: traefik-dashboard
+      when: traefik_dashboard_enabled | default(true)
+
+- name: Display service access information
+  hosts: k3s_servers[0]
+  gather_facts: false
+  vars:
+    kubeconfig_path: "/tmp/k3s-kubeconfig-k3s-server-01"
+  tags:
+    - services
+  tasks:
+    - name: Summary of deployed services
+      ansible.builtin.debug:
+        msg:
+          - "==================================================================="
+          - "All homelab services have been deployed successfully!"
+          - "==================================================================="
+          - ""
+          - "Access your services:"
+          - ""
+          - "Grafana:"
+          - "  kubectl port-forward -n {{ prometheus_namespace | default('homelab') }} svc/{{ prometheus_release_name | default('prometheus') }}-grafana 3000:80"
+          - "  http://localhost:3000"
+          - "  User: {{ grafana_admin_user | default('admin') }}"
+          - ""
+          - "Prometheus:"
+          - "  kubectl port-forward -n {{ prometheus_namespace | default('homelab') }} svc/{{ prometheus_release_name | default('prometheus') }}-kube-prometheus-prometheus 9090:9090"
+          - "  http://localhost:9090"
+          - ""
+          - "Blocky DNS:"
+          - "  kubectl port-forward -n {{ blocky_namespace | default('homelab') }} svc/{{ blocky_release_name | default('blocky') }} 4000:4000"
+          - "  http://localhost:4000"
+          - ""
+          - "Vault:"
+          - "  kubectl port-forward -n {{ vault_namespace | default('homelab') }} svc/{{ vault_release_name | default('vault') }} 8200:8200"
+          - "  http://localhost:8200"
+          - ""
+          - "Authentik:"
+          - "  kubectl port-forward -n {{ authentik_namespace | default('homelab') }} svc/{{ authentik_release_name | default('authentik') }}-server 80:80"
+          - "  http://localhost:80"
+          - ""
+          - "Traefik Dashboard:"
+          - "  kubectl port-forward -n kube-system svc/traefik-dashboard 9000:9000"
+          - "  http://localhost:9000/dashboard/"
+          - ""
+          - "==================================================================="

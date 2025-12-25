@@ -1,0 +1,109 @@
+---
+# Traefik Dashboard Deployment Tasks
+# Note: K3s comes with Traefik pre-installed. This role just exposes the dashboard.
+
+- name: Check if Traefik is installed
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: traefik
+    namespace: "{{ traefik_namespace }}"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: traefik_deployment
+  failed_when: false
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Set default traefik_deployment for check mode
+  set_fact:
+    traefik_deployment: {"resources": [{"metadata": {"name": "traefik"}}]}
+  when: ansible_check_mode
+
+- name: Verify Traefik is installed
+  ansible.builtin.assert:
+    that:
+      - traefik_deployment.resources | length > 0
+    fail_msg: "Traefik is not installed. K3s should have Traefik pre-installed."
+    success_msg: "Traefik is installed and running."
+
+- name: Create Traefik Dashboard Service
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: traefik-dashboard
+        namespace: "{{ traefik_namespace }}"
+        labels:
+          app: traefik
+          component: dashboard
+      spec:
+        type: "{{ traefik_dashboard_service_type }}"
+        ports:
+          - name: dashboard
+            port: "{{ traefik_dashboard_port }}"
+            targetPort: 9000
+            protocol: TCP
+        selector:
+          app.kubernetes.io/name: traefik
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Create Traefik Dashboard IngressRoute (if ingress enabled)
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    definition:
+      apiVersion: traefik.containo.us/v1alpha1
+      kind: IngressRoute
+      metadata:
+        name: traefik-dashboard
+        namespace: "{{ traefik_namespace }}"
+      spec:
+        entryPoints:
+          - web
+        routes:
+          - match: "Host(`{{ traefik_dashboard_ingress_host }}`)"
+            kind: Rule
+            services:
+              - name: api@internal
+                kind: TraefikService
+  when: traefik_dashboard_ingress_enabled and not ansible_check_mode
+  delegate_to: localhost
+
+- name: Set default traefik_pods for check mode
+  set_fact:
+    traefik_pods: {"resources": []}
+  when: ansible_check_mode
+
+- name: Wait for Traefik pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ traefik_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=traefik"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: traefik_pods
+  until: traefik_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Display Traefik Dashboard access information
+  ansible.builtin.debug:
+    msg:
+      - "Traefik Dashboard has been configured successfully!"
+      - "Namespace: {{ traefik_namespace }}"
+      - "Dashboard Port: {{ traefik_dashboard_port }}"
+      - "To access Traefik Dashboard, run: kubectl port-forward -n {{ traefik_namespace }} svc/traefik-dashboard {{ traefik_dashboard_port }}:{{ traefik_dashboard_port }}"
+      - "Then open http://localhost:{{ traefik_dashboard_port }}/dashboard/ in your browser"
+      - "Note: The trailing slash (/) is important!"
+      - ""
+      - "Note: Dashboard may require enabling in Traefik configuration if not already enabled."
+      - "Check K3s Traefik HelmChart resource: kubectl get helmchart traefik -n kube-system -o yaml"

@@ -1,0 +1,89 @@
+---
+# Vault Secret Management Deployment Tasks
+
+- name: Check required variables
+  ansible.builtin.assert:
+    that:
+      - vault_storage_class is defined
+      - vault_namespace is defined
+    fail_msg: "Required Vault variables are not defined"
+
+- name: Display security warning
+  ansible.builtin.debug:
+    msg:
+      - "========================================="
+      - "VAULT SECURITY NOTICE"
+      - "========================================="
+      - "TLS is disabled in the default configuration."
+      - "This is acceptable for homelab/development use."
+      - "For production, enable TLS by:"
+      - "  1. Creating TLS certificates"
+      - "  2. Configuring Vault listener with TLS"
+      - "  3. Using ingress with TLS termination"
+      - "========================================="
+  when: not vault_dev_mode
+
+- name: Create namespace for Vault
+  kubernetes.core.k8s:
+    name: "{{ vault_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Add HashiCorp Helm repository
+  kubernetes.core.helm_repository:
+    name: hashicorp
+    repo_url: https://helm.releases.hashicorp.com
+    state: present
+  delegate_to: localhost
+
+- name: Uninstall existing Vault if present
+  ansible.builtin.shell:
+    cmd: helm uninstall vault --namespace homelab --kubeconfig {{ kubeconfig_path }} || true
+  delegate_to: localhost
+  ignore_errors: true
+
+- name: Deploy Vault
+  ansible.builtin.command:
+    cmd: helm install vault hashicorp/vault --namespace homelab --create-namespace --kubeconfig {{ kubeconfig_path }} --set server.dev.enabled=False --set server.dev.devRootToken=dev-only-token --set ui.enabled=True --set server.standalone.enabled=True --set server.service.type=ClusterIP
+    creates: /tmp/vault-installed
+  delegate_to: localhost
+  register: vault_deploy_result
+
+- name: Set default vault_pods for check mode
+  set_fact:
+    vault_pods: {"resources": []}
+  when: ansible_check_mode
+
+- name: Wait for Vault pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ vault_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=vault"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: vault_pods
+  until: vault_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Display Vault access information
+  ansible.builtin.debug:
+    msg:
+      - "Vault has been deployed successfully!"
+      - "Namespace: {{ vault_namespace }}"
+      - "Release: {{ vault_release_name }}"
+      - "UI Enabled: {{ vault_ui_enabled }}"
+      - "{% if vault_dev_mode %}WARNING: Running in DEV mode - NOT for production!{% endif %}"
+      - "{% if vault_dev_mode %}Dev Root Token: {{ vault_dev_root_token }}{% endif %}"
+      - "To access Vault UI, run: kubectl port-forward -n {{ vault_namespace }} svc/{{ vault_release_name }} {{ vault_service_port }}:{{ vault_service_port }}"
+      - "Then open http://localhost:{{ vault_service_port }} in your browser"
+      - "{% if not vault_dev_mode %}Initialize Vault: kubectl exec -n {{ vault_namespace }} {{ vault_release_name }}-0 -- vault operator init{% endif %}"
+      - "{% if not vault_dev_mode %}Unseal Vault: kubectl exec -n {{ vault_namespace }} {{ vault_release_name }}-0 -- vault operator unseal <unseal-key>{% endif %}"

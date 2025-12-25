@@ -1,0 +1,50 @@
+---
+# Authentik SSO/SAML Role Defaults
+
+authentik_release_name: "authentik"
+authentik_namespace: "{{ k3s_services_namespace | default('homelab') }}"
+authentik_chart: "authentik/authentik"
+# Pinned to stable version - update as needed
+authentik_chart_version: "2023.10.4"
+
+# Secret key for Authentik (generate with: openssl rand -hex 32)
+# REQUIRED: Set vault_authentik_secret_key in your inventory!
+# ansible-vault encrypt_string 'your-secret-key-here' --name 'vault_authentik_secret_key'
+authentik_secret_key: "{{ vault_authentik_secret_key }}"
+
+# PostgreSQL settings
+authentik_postgresql_enabled: true
+# REQUIRED: Set vault_authentik_postgresql_password in your inventory!
+# ansible-vault encrypt_string 'your-db-password-here' --name 'vault_authentik_postgresql_password'
+authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"
+authentik_postgresql_database: "authentik"
+authentik_postgresql_user: "authentik"
+
+# Redis settings
+authentik_redis_enabled: true
+
+# Storage settings
+authentik_storage_class: "local-path"
+authentik_storage_size: "5Gi"
+authentik_postgresql_storage_size: "8Gi"
+authentik_redis_storage_size: "2Gi"
+
+# Service settings
+authentik_service_type: "ClusterIP"
+authentik_service_port: 80
+authentik_service_https_port: 443
+
+# Ingress settings
+authentik_ingress_enabled: false
+authentik_ingress_host: "authentik.homelab.local"
+
+# Email settings (optional)
+authentik_email_enabled: false
+authentik_email_host: "smtp.example.com"
+authentik_email_port: 587
+authentik_email_use_tls: true
+authentik_email_from: "authentik@homelab.local"
+
+# Replicas
+authentik_server_replicas: 1
+authentik_worker_replicas: 1

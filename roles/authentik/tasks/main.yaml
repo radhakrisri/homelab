@@ -1,0 +1,116 @@
+---
+# Authentik SSO/SAML Deployment Tasks
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - vault_authentik_secret_key is defined
+      - vault_authentik_postgresql_password is defined
+      - vault_authentik_secret_key != ''
+      - vault_authentik_postgresql_password != ''
+    fail_msg: |
+      Required Authentik secrets are not set!
+      Please set vault_authentik_secret_key and vault_authentik_postgresql_password in your inventory.
+      Generate secure values:
+        openssl rand -hex 32
+      Then encrypt with Ansible Vault:
+        ansible-vault encrypt_string 'your-secret-key' --name 'vault_authentik_secret_key'
+        ansible-vault encrypt_string 'your-db-password' --name 'vault_authentik_postgresql_password'
+
+- name: Create namespace for Authentik
+  kubernetes.core.k8s:
+    name: "{{ authentik_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Add Authentik Helm repository
+  kubernetes.core.helm_repository:
+    name: authentik
+    repo_url: https://charts.goauthentik.io
+    state: present
+  delegate_to: localhost
+
+- name: Deploy Authentik
+  ansible.builtin.command:
+    cmd: helm upgrade --install {{ authentik_release_name }} {{ authentik_chart }} --namespace {{ authentik_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --set authentik.secret_key={{ authentik_secret_key }} --set postgresql.postgresqlUsername=authentik --set postgresql.postgresqlPassword={{ authentik_postgresql_password }} --set postgresql.postgresqlDatabase=authentik --set postgresql.enabled=true --set authentik.postgresql.host=authentik-postgresql --set authentik.postgresql.user=authentik --set authentik.postgresql.password={{ authentik_postgresql_password }} --set authentik.postgresql.database=authentik
+    creates: /tmp/authentik-installed
+  delegate_to: localhost
+  register: authentik_deploy_result
+
+- name: Create PVC for Authentik media
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ authentik_release_name }}-media"
+        namespace: "{{ authentik_namespace }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{ authentik_storage_class }}"
+        resources:
+          requests:
+            storage: "{{ authentik_storage_size }}"
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Set default authentik_server_pods for check mode
+  set_fact:
+    authentik_server_pods: {"resources": []}
+  when: ansible_check_mode
+
+- name: Wait for Authentik server pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ authentik_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=authentik"
+      - "app.kubernetes.io/component=server"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: authentik_server_pods
+  until: authentik_server_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Set default postgresql_pods for check mode
+  set_fact:
+    postgresql_pods: {"resources": []}
+  when: ansible_check_mode
+
+- name: Wait for PostgreSQL to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ authentik_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=postgresql"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: postgresql_pods
+  until: postgresql_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  when: authentik_postgresql_enabled and not ansible_check_mode
+  delegate_to: localhost
+
+- name: Display Authentik access information
+  ansible.builtin.debug:
+    msg:
+      - "Authentik SSO/SAML has been deployed successfully!"
+      - "Namespace: {{ authentik_namespace }}"
+      - "Release: {{ authentik_release_name }}"
+      - "To access Authentik, run: kubectl port-forward -n {{ authentik_namespace }} svc/{{ authentik_release_name }}-server {{ authentik_service_port }}:{{ authentik_service_port }}"
+      - "Then open http://localhost:{{ authentik_service_port }} in your browser"
+      - "Default credentials: akadmin / (check Authentik documentation for initial setup)"
+      - "Complete the initial setup wizard to configure your first admin user"

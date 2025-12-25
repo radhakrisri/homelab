@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ blocky_release_name }}-config
+  namespace: {{ blocky_namespace }}
+data:
+  config.yml: |
+    upstream:
+      default:
+{% for dns in blocky_upstream_dns %}
+        - {{ dns }}
+{% endfor %}
+    
+    blocking:
+      blackLists:
+        ads:
+{% for blocklist in blocky_blocklists %}
+          - {{ blocklist }}
+{% endfor %}
+      clientGroupsBlock:
+        default:
+          - ads
+      blockType: zeroIp
+      blockTTL: 1m
+    
+    caching:
+      minTime: 5m
+      maxTime: 30m
+      maxItemsCount: 10000
+      prefetching: true
+      prefetchExpires: 2h
+      prefetchThreshold: 5
+      prefetchMaxItemsCount: 1000
+    
+    prometheus:
+      enable: true
+      path: /metrics
+    
+    ports:
+      dns: {{ blocky_service_port }}
+      http: {{ blocky_api_port }}
+    
+    log:
+      level: info
+      format: text

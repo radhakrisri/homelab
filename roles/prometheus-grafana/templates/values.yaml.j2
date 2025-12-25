@@ -1,0 +1,184 @@
+---
+# Custom values for kube-prometheus-stack with comprehensive node monitoring
+
+# Prometheus configuration
+prometheus:
+  prometheusSpec:
+    retention: "{{ prometheus_retention }}"
+    replicas: {{ prometheus_replicas }}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    ruleSelector: {}
+    securityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+    additionalScrapeConfigs:
+      - job_name: 'k3s-nodes'
+        static_configs:
+{% for host in groups['all'] %}
+          - targets: ['{{ hostvars[host]['ansible_host'] }}:9100']
+            labels:
+              node: '{{ host }}'
+              instance: '{{ hostvars[host]['ansible_host'] }}'
+{% endfor %}
+      - job_name: 'k3s-metrics'
+        static_configs:
+          - targets: ['{{ hostvars[groups['k3s_servers'][0]]['ansible_host'] }}:10250']
+            labels:
+              service: 'k3s-metrics'
+      - job_name: 'k3s-etcd'
+        static_configs:
+{% for host in groups['k3s_servers'] %}
+          - targets: ['{{ hostvars[host]['ansible_host'] }}:2379']
+            labels:
+              node: '{{ host }}'
+              service: 'etcd'
+{% endfor %}
+
+# Node Exporter configuration
+prometheus-node-exporter:
+  enabled: true
+  service:
+    port: 9100
+    targetPort: 9100
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+    - effect: NoExecute
+      operator: Exists
+
+# Grafana configuration
+grafana:
+  adminUser: "{{ grafana_admin_user }}"
+  adminPassword: "{{ grafana_admin_password }}"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  persistence:
+    enabled: true
+    size: "{{ grafana_storage_size }}"
+  dashboards:
+    default:
+      kubernetes-cluster-monitoring:
+        gnetId: 3119
+        revision: 2
+        datasource: Prometheus
+      node-exporter-full:
+        gnetId: 1860
+        revision: 28
+        datasource: Prometheus
+      k3s-monitoring:
+        gnetId: 13646
+        revision: 1
+        datasource: Prometheus
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+# Alertmanager configuration
+alertmanager:
+  enabled: true
+  config:
+    global:
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alertmanager@homelab.local'
+    route:
+      group_by: ['alertname']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'null'
+      routes:
+      - match:
+          alertname: Watchdog
+        receiver: 'null'
+    receivers:
+    - name: 'null'
+
+# Kube State Metrics
+kube-state-metrics:
+  enabled: true
+
+# Kubernetes service monitoring
+kubernetesServiceMonitors:
+  enabled: true
+
+# Kubelet service monitoring
+kubelet:
+  enabled: true
+  serviceMonitor:
+    https: false
+
+# CoreDNS monitoring
+coreDns:
+  enabled: true
+  service:
+    selector:
+      k8s-app: kube-dns
+
+# K3s specific monitoring
+additionalServiceMonitors:
+  - name: k3s-api-server
+    selector:
+      matchLabels:
+        component: kube-apiserver
+        tier: control-plane
+    namespaceSelector:
+      matchNames:
+        - kube-system
+    endpoints:
+    - port: https
+      scheme: https
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecureSkipVerify: true
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      metricRelabelings:
+      - action: keep
+        regex: '(apiserver_request_total|apiserver_request_duration_seconds|workqueue_depth|workqueue_queue_duration_seconds)'
+        sourceLabels: [__name__]
+
+  - name: k3s-scheduler
+    selector:
+      matchLabels:
+        component: kube-scheduler
+        tier: control-plane
+    namespaceSelector:
+      matchNames:
+        - kube-system
+    endpoints:
+    - port: https
+      scheme: https
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecureSkipVerify: true
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+  - name: k3s-controller-manager
+    selector:
+      matchLabels:
+        component: kube-controller-manager
+        tier: control-plane
+    namespaceSelector:
+      matchNames:
+        - kube-system
+    endpoints:
+    - port: https
+      scheme: https
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecureSkipVerify: true
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token

@@ -1,0 +1,36 @@
+---
+# Blocky DNS and Ad Blocker Role Defaults
+
+blocky_release_name: "blocky"
+blocky_namespace: "{{ k3s_services_namespace | default('homelab') }}"
+blocky_chart_version: "10.5.2"
+
+# DNS settings
+blocky_upstream_dns:
+  - 1.1.1.1
+  - 1.0.0.1
+  - 8.8.8.8
+  - 8.8.4.4
+
+# Blocking settings
+blocky_blocking_enabled: true
+blocky_blocklists:
+  - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+  - https://adaway.org/hosts.txt
+
+# Service settings
+blocky_service_type: "LoadBalancer"
+blocky_service_port: 53
+blocky_service_tcp_port: 53
+
+# API settings
+blocky_api_port: 4000
+
+# Resource limits
+blocky_cpu_limit: "500m"
+blocky_memory_limit: "512Mi"
+blocky_cpu_request: "100m"
+blocky_memory_request: "128Mi"
+
+# Replicas
+blocky_replicas: 1

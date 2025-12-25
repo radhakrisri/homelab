@@ -1,0 +1,90 @@
+---
+# Prometheus & Grafana Stack Deployment Tasks
+
+- name: Validate Grafana password
+  ansible.builtin.assert:
+    that:
+      - vault_grafana_admin_password is defined
+      - vault_grafana_admin_password != ''
+    fail_msg: |
+      Grafana admin password is required!
+      Set vault_grafana_admin_password in your inventory using Ansible Vault:
+        ansible-vault encrypt_string 'your-strong-password' --name 'vault_grafana_admin_password'
+
+- name: Create namespace for monitoring stack
+  kubernetes.core.k8s:
+    name: "{{ prometheus_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Add Prometheus Community Helm repository
+  kubernetes.core.helm_repository:
+    name: prometheus-community
+    repo_url: https://prometheus-community.github.io/helm-charts
+    state: present
+  delegate_to: localhost
+
+- name: Add Grafana Helm repository
+  kubernetes.core.helm_repository:
+    name: grafana
+    repo_url: https://grafana.github.io/helm-charts
+    state: present
+  delegate_to: localhost
+
+- name: Generate Prometheus values file
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: /tmp/prometheus-values.yaml
+  delegate_to: localhost
+
+- name: Deploy kube-prometheus-stack
+  ansible.builtin.command:
+    cmd: helm upgrade --install {{ prometheus_release_name }} {{ prometheus_chart }} --namespace {{ prometheus_namespace }} --create-namespace --kubeconfig {{ kubeconfig_path }} --values /tmp/prometheus-values.yaml
+    creates: /tmp/prometheus-installed
+  delegate_to: localhost
+  register: prometheus_deploy_result
+
+- name: Wait for Prometheus pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ prometheus_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=prometheus"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: prometheus_pods
+  until: prometheus_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Wait for Grafana pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ prometheus_namespace }}"
+    label_selectors:
+      - "app.kubernetes.io/name=grafana"
+    kubeconfig: "{{ kubeconfig_path }}"
+    validate_certs: no
+  register: grafana_pods
+  until: grafana_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  delegate_to: localhost
+  when: not ansible_check_mode
+
+- name: Display Grafana access information
+  ansible.builtin.debug:
+    msg:
+      - "Grafana has been deployed successfully!"
+      - "Namespace: {{ prometheus_namespace }}"
+      - "Release: {{ prometheus_release_name }}"
+      - "Admin User: {{ grafana_admin_user }}"
+      - "To access Grafana, run: kubectl port-forward -n {{ prometheus_namespace }} svc/{{ prometheus_release_name }}-grafana 3000:80"
+      - "Then open http://localhost:3000 in your browser"

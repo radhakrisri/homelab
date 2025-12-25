@@ -1,0 +1,8 @@
+---
+# Handlers for Blocky role
+
+- name: Restart blocky
+  ansible.builtin.shell: |
+    kubectl rollout restart deployment/{{ blocky_release_name }} -n {{ blocky_namespace }} --kubeconfig={{ kubeconfig_path }}
+  delegate_to: localhost
+  become: false

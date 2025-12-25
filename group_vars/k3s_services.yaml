@@ -1,0 +1,14 @@
+---
+# K3s Services - Common Configuration
+# Shared variables across all homelab services
+# Service-specific configuration is in roles/<role>/defaults/main.yaml
+
+# Namespace for homelab services
+k3s_services_namespace: "homelab"
+
+# Service deployment toggles (used by deploy-services.yaml)
+prometheus_enabled: true
+blocky_enabled: true
+vault_enabled: true
+authentik_enabled: true
+traefik_dashboard_enabled: true

@@ -34,6 +34,37 @@ all:
     # Additional K3s agent arguments (optional)
     k3s_agent_extra_args: ""
 
+    # Homelab Services Configuration
+    # Set deploy_services=true to deploy services with cluster
+    deploy_services: false
+
+    # Service namespace
+    k3s_services_namespace: "homelab"
+
+    # Enable/disable individual services
+    prometheus_enabled: true
+    blocky_enabled: true
+    vault_enabled: true
+    authentik_enabled: true
+    traefik_dashboard_enabled: true
+
+    # Grafana configuration
+    # grafana_admin_password: "{{ vault_grafana_admin_password }}"  # Use Ansible Vault
+    grafana_storage_size: "5Gi"
+
+    # Blocky DNS configuration
+    # blocky_upstream_dns:
+    #   - 1.1.1.1
+    #   - 8.8.8.8
+
+    # Vault configuration
+    vault_dev_mode: false  # Never set to true in production!
+    vault_storage_size: "10Gi"
+
+    # Authentik configuration
+    # authentik_secret_key: "{{ vault_authentik_secret_key }}"  # Use Ansible Vault
+    # authentik_postgresql_password: "{{ vault_authentik_postgresql_password }}"  # Use Ansible Vault
+
   children:
     # K3s Server nodes (control plane) - minimum 3 for HA
     k3s_servers:
